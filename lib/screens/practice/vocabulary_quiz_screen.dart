@@ -252,7 +252,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
             ),
             child: IconButton(
               icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             ),
           ),
           const SizedBox(width: 16),
@@ -832,6 +832,17 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
     );
   }
 
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final accuracy = (_score / _questions.length).clamp(0.0, 1.0);
+    return {
+      'correct': (_score),
+      'total': _questions.length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   Widget _buildActionButtons() {
     return Column(
       children: [
@@ -859,7 +870,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: BorderSide(color: Colors.grey.shade300),

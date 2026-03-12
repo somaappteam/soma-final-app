@@ -1,34 +1,23 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/course_provider.dart';
-import '../../services/csv_data_service.dart';
 import '../../theme/app_theme.dart';
-import '../../models/vocabulary_item.dart';
 import '../../models/study_models.dart';
+import '../../models/course_model.dart';
 
 // Import all feature screens
-import '../grammar/grammar_module_screen.dart';
-import '../story/story_reader_screen.dart';
 import '../audio/podcast_player_screen.dart';
-import '../ai/ai_conversation_screen.dart';
 import '../achievements/achievements_screen.dart';
-import '../comprehensive_settings_screen.dart';
 import '../practice_modes_screen.dart';
-import '../practice/flashcards_screen.dart';
-import '../practice/listening_practice_screen.dart';
-import '../games/word_match_game.dart';
-import '../practice/speed_challenge_screen.dart';
-import '../practice_modes/translation_challenge_screen.dart';
-import '../practice_modes/spelling_bee_screen.dart';
-import '../practice_modes/writing_practice_screen.dart';
-import '../practice_modes/sentence_completion_screen.dart';
-import '../practice/vocabulary_quiz_screen.dart';
-import '../practice/fill_in_blank_screen.dart';
-import '../practice/pronunciation_practice_screen.dart';
-import '../games/falling_words_launcher.dart';
 import '../auth/register_screen.dart';
+import '../home/course_selector_sheet.dart';
+import '../home/add_course_screen.dart';
+import '../settings_screen.dart';
 
 class IntegratedHomeScreen extends StatefulWidget {
   const IntegratedHomeScreen({super.key});
@@ -38,11 +27,14 @@ class IntegratedHomeScreen extends StatefulWidget {
 }
 
 class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
+  Map<String, dynamic>? _lastSession;
+  Map<String, dynamic>? _weeklyInsights;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CourseProvider>().loadCourses();
+      _loadLastSession();
     });
   }
 
@@ -75,8 +67,19 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
             child: _buildContinueLearning(context, activeCourse),
           ),
           SliverToBoxAdapter(
-            child: _buildFeatureGrid(context, isGuest),
+            child: _buildActiveCourseSection(context, activeCourse, courseProvider),
           ),
+          SliverToBoxAdapter(
+            child: _buildFeatureGrid(context),
+          ),
+          if (_lastSession != null)
+            SliverToBoxAdapter(
+              child: _buildQuickResumeCard(context),
+            ),
+          if (_weeklyInsights != null)
+            SliverToBoxAdapter(
+              child: _buildWeeklyInsightsCard(),
+            ),
           SliverToBoxAdapter(
             child: _buildPracticeModes(context, isGuest),
           ),
@@ -183,6 +186,22 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _navigateToSettings(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.settings,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],
@@ -450,24 +469,8 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
     ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildFeatureGrid(BuildContext context, bool isGuest) {
+  Widget _buildFeatureGrid(BuildContext context) {
     final features = [
-      {
-        'icon': Icons.school,
-        'title': 'Grammar',
-        'subtitle': 'Master rules',
-        'color': Colors.purple,
-        'screen': 'grammar',
-        'available': true,
-      },
-      {
-        'icon': Icons.menu_book,
-        'title': 'Stories',
-        'subtitle': 'Read & learn',
-        'color': Colors.teal,
-        'screen': 'stories',
-        'available': true,
-      },
       {
         'icon': Icons.headphones,
         'title': 'Podcasts',
@@ -475,14 +478,6 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
         'color': Colors.orange,
         'screen': 'podcasts',
         'available': true,
-      },
-      {
-        'icon': Icons.chat_bubble,
-        'title': 'AI Chat',
-        'subtitle': 'Practice talking',
-        'color': Colors.blue,
-        'screen': 'ai_chat',
-        'available': !isGuest,
       },
     ];
 
@@ -492,7 +487,7 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Learning Features',
+            'Podcast',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -577,6 +572,159 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
     ).animate().fadeIn(delay: 200.ms);
   }
 
+
+  Future<void> _loadLastSession() async {
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    final courseId = activeCourse?.id ?? 'demo';
+    final targetLanguage = activeCourse?.targetLanguage ?? 'es';
+    final nativeLanguage = activeCourse?.nativeLanguage ?? 'en';
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('practice_last_session_${courseId}_$targetLanguage_$nativeLanguage');
+    final rawHistory = prefs.getString('practice_session_history_${courseId}_$targetLanguage_$nativeLanguage');
+
+    final history = rawHistory == null
+        ? <Map<String, dynamic>>[]
+        : (jsonDecode(rawHistory) as List<dynamic>)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+    final weekEntries = history.where((entry) {
+      final timestamp = entry['timestamp']?.toString();
+      final parsed = timestamp == null ? null : DateTime.tryParse(timestamp);
+      return parsed != null && parsed.isAfter(weekAgo);
+    }).toList();
+
+    String bestMode = 'N/A';
+    String improvedArea = 'Consistency';
+    double avgAccuracy = 0;
+
+    if (weekEntries.isNotEmpty) {
+      final modeCount = <String, int>{};
+      final movedCount = <String, int>{};
+      double accuracySum = 0;
+      int accuracyCount = 0;
+
+      for (final e in weekEntries) {
+        final mode = e['mode']?.toString() ?? 'Practice';
+        modeCount[mode] = (modeCount[mode] ?? 0) + 1;
+
+        final accuracy = (e['accuracy'] as num?)?.toDouble();
+        if (accuracy != null) {
+          accuracySum += accuracy;
+          accuracyCount++;
+        }
+
+        final moved = e['adaptiveMovedTo']?.toString();
+        if (moved != null) {
+          movedCount[moved] = (movedCount[moved] ?? 0) + 1;
+        }
+      }
+
+      bestMode = modeCount.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+      if (movedCount.isNotEmpty) {
+        improvedArea = 'Difficulty: ${movedCount.entries.reduce((a, b) => a.value >= b.value ? a : b).key}';
+      } else if (accuracyCount > 0) {
+        improvedArea = 'Accuracy trend';
+      }
+      avgAccuracy = accuracyCount > 0 ? (accuracySum / accuracyCount) : 0;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _lastSession = raw == null
+          ? null
+          : Map<String, dynamic>.from(
+              raw.isEmpty ? <String, dynamic>{} : (jsonDecode(raw) as Map<String, dynamic>),
+            );
+      _weeklyInsights = {
+        'sessions': weekEntries.length,
+        'avg': avgAccuracy,
+        'bestMode': bestMode,
+        'improvedArea': improvedArea,
+      };
+    });
+  }
+
+  Widget _buildQuickResumeCard(BuildContext context) {
+    final mode = _lastSession?['mode']?.toString() ?? 'Practice';
+    final difficulty = _lastSession?['difficulty']?.toString() ?? 'beginner';
+    final count = _lastSession?['count']?.toString() ?? '10';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryTeal.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.play_arrow, color: AppColors.primaryTeal),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Quick Resume', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                const SizedBox(height: 2),
+                Text('Continue $mode • ${difficulty[0].toUpperCase()}${difficulty.substring(1)} • $count questions', style: const TextStyle(color: AppColors.textMedium)),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => _navigateToAllPracticeModes(context, initialMode: mode),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildWeeklyInsightsCard() {
+    final sessions = _weeklyInsights?['sessions'] ?? 0;
+    final avg = (_weeklyInsights?['avg'] ?? 0).toDouble();
+    final bestMode = _weeklyInsights?['bestMode']?.toString() ?? 'N/A';
+    final improvedArea = _weeklyInsights?['improvedArea']?.toString() ?? 'Consistency';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Weekly Insights', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          const SizedBox(height: 8),
+          Text('Sessions this week: $sessions', style: const TextStyle(color: AppColors.textMedium)),
+          Text('Average accuracy: ${(avg * 100).toStringAsFixed(0)}%', style: const TextStyle(color: AppColors.textMedium)),
+          Text('Best mode: $bestMode', style: const TextStyle(color: AppColors.textMedium)),
+          Text('Most improved: $improvedArea', style: const TextStyle(color: AppColors.textMedium)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPracticeModes(BuildContext context, bool isGuest) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,7 +771,6 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
           title: 'Sentences',
           isGuest: isGuest,
           modes: [
-            {'name': 'Completion', 'icon': Icons.wrap_text, 'color': Colors.deepOrange, 'available': !isGuest, 'modeType': 'sentence_completion'},
             {'name': 'Fill in Blank', 'icon': Icons.edit_note, 'color': Colors.indigo, 'available': !isGuest, 'modeType': 'fill_in_blank'},
             {'name': 'Translation', 'icon': Icons.translate, 'color': Colors.blue, 'available': !isGuest, 'modeType': 'translation'},
             {'name': 'Writing', 'icon': Icons.edit, 'color': Colors.indigo, 'available': !isGuest, 'modeType': 'writing'},
@@ -735,26 +882,6 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildRecommendationCard(
-            context: context,
-            title: 'Grammar: Past Tense',
-            subtitle: 'Master the preterite in Spanish',
-            icon: Icons.school,
-            color: Colors.purple,
-            progress: 0.3,
-            onTap: () => _navigateToFeature(context, 'grammar'),
-          ),
-          const SizedBox(height: 12),
-          _buildRecommendationCard(
-            context: context,
-            title: 'Story: A Day in Madrid',
-            subtitle: 'Reading • 5 min • Beginner',
-            icon: Icons.menu_book,
-            color: Colors.teal,
-            progress: 0.0,
-            onTap: () => _navigateToFeature(context, 'stories'),
-          ),
-          const SizedBox(height: 12),
           _buildRecommendationCard(
             context: context,
             title: 'Podcast: Food Vocabulary',
@@ -938,6 +1065,232 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
     );
   }
 
+
+  Widget _buildActiveCourseSection(
+    BuildContext context,
+    CourseModel? activeCourse,
+    CourseProvider courseProvider,
+  ) {
+    final courses = courseProvider.courses;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.tealGradient,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.school, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'My Course',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ],
+              ),
+              if (courses.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => _showCourseSelector(context),
+                  icon: const Icon(Icons.menu_book, size: 18),
+                  label: Text(
+                    '${courses.length} ${courses.length == 1 ? 'Course' : 'Courses'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (activeCourse != null) ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: AppColors.tealGradient,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            activeCourse.targetLanguageFlag,
+                            style: const TextStyle(fontSize: 36),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'ACTIVE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primaryTeal,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              activeCourse.targetLanguageName,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(activeCourse.nativeLanguageFlag, style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'from ${activeCourse.nativeLanguageName}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progress',
+                        style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8)),
+                      ),
+                      Text(
+                        '${activeCourse.progress.toInt()}% Complete',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: activeCourse.progress / 100,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                      minHeight: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showCourseSelector(context),
+                icon: const Icon(Icons.menu_book),
+                label: const Text('Manage My Courses'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryTeal,
+                  side: const BorderSide(color: AppColors.primaryTeal),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.school_outlined, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No Course Selected',
+                    style: TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Add a course to start learning',
+                    style: TextStyle(color: AppColors.textMedium, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _navigateToAddCourse(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Course'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    ).animate().fadeIn(delay: 200.ms);
+  }
+
   Widget _buildGuestBanner(BuildContext context) {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -1013,56 +1366,38 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
   }
 
   // Navigation Methods
+
+  void _navigateToSettings(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  void _showCourseSelector(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CourseSelectorSheet(),
+    );
+  }
+
+  void _navigateToAddCourse(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddCourseScreen()),
+    );
+  }
+
   void _navigateToFeature(BuildContext context, String feature) {
     switch (feature) {
-      case 'grammar':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const GrammarModuleScreen()),
-        );
-        break;
-      case 'stories':
-        _navigateToStories(context);
-        break;
       case 'podcasts':
         _navigateToPodcasts(context);
         break;
-      case 'ai_chat':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AIConversationScreen()),
-        );
-        break;
-      case 'settings':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ComprehensiveSettingsScreen()),
-        );
-        break;
+      default:
+        _navigateToAllPracticeModes(context);
     }
-  }
-
-  void _navigateToStories(BuildContext context) {
-    // Create a demo story with all required properties
-    const demoStory = Story(
-      id: 'demo-story-1',
-      title: 'A Day in Madrid',
-      content: 'María se despierta temprano en la mañana. Ella vive en Madrid, una ciudad hermosa y llena de vida. Después de desayunar, María toma el metro para ir al trabajo. El metro de Madrid es uno de los mejores de Europa.',
-      language: 'es',
-      difficulty: 'beginner',
-      author: 'LinguaQuest Team',
-      estimatedReadTime: 5,
-      wordCount: 45,
-      tags: ['travel', 'daily life', 'beginner'],
-      annotations: [],
-    );
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const StoryReaderScreen(story: demoStory),
-      ),
-    );
   }
 
   void _navigateToPodcasts(BuildContext context) {
@@ -1081,321 +1416,24 @@ class _IntegratedHomeScreenState extends State<IntegratedHomeScreen> {
     );
   }
 
-  void _navigateToAllPracticeModes(BuildContext context) {
+  void _navigateToAllPracticeModes(BuildContext context, {String? initialMode}) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PracticeModesScreen()),
+      MaterialPageRoute(builder: (_) => PracticeModesScreen(initialMode: initialMode)),
     );
   }
 
-  Future<void> _launchPracticeMode(BuildContext context, String modeType) async {
-    if (modeType == 'all') {
-      _navigateToAllPracticeModes(context);
-      return;
-    }
+  void _launchPracticeMode(BuildContext context, String modeType) {
+    _navigateToAllPracticeModes(context);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final courseProvider = context.read<CourseProvider>();
-      final activeCourse = courseProvider.activeCourse;
-      final csvService = CsvDataService();
-      
-      final targetLanguage = activeCourse?.targetLanguage ?? 'es';
-      final nativeLanguage = activeCourse?.nativeLanguage ?? 'en';
-      
-      if (['sentence_completion', 'fill_in_blank', 'translation', 'writing'].contains(modeType)) {
-        List<Map<String, dynamic>> sentences = [];
-        if (activeCourse != null) {
-          sentences = await csvService.getSentences(
-            activeCourse.targetLanguage,
-            activeCourse.nativeLanguage,
-          );
-        }
-        
-        if (!context.mounted) return;
-        Navigator.pop(context);
-        
-        if (sentences.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No sentences available to play'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
-        }
-
-        if (sentences.length < 4) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Need at least 4 sentences to play'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
-        }
-        
-        switch (modeType) {
-          case 'sentence_completion':
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SentenceCompletionScreen(
-                  sentences: sentences,
-                  targetLanguage: targetLanguage,
-                  nativeLanguage: nativeLanguage,
-                ),
-              ),
-            );
-            break;
-          case 'fill_in_blank':
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => FillInBlankScreen(
-                  sentences: sentences,
-                  targetLanguage: targetLanguage,
-                  nativeLanguage: nativeLanguage,
-                ),
-              ),
-            );
-            break;
-          case 'translation':
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => TranslationChallengeScreen(
-                  sentences: sentences,
-                  targetLanguage: targetLanguage,
-                  nativeLanguage: nativeLanguage,
-                ),
-              ),
-            );
-            break;
-          case 'writing':
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => WritingPracticeScreen(
-                  sentences: sentences,
-                  targetLanguage: targetLanguage,
-                  nativeLanguage: nativeLanguage,
-                ),
-              ),
-            );
-            break;
-        }
-        return;
-      }
-      
-      List<VocabularyItem> vocabulary = [];
-      if (activeCourse != null) {
-        vocabulary = await csvService.getVocabulary(
-          activeCourse.targetLanguage,
-          activeCourse.nativeLanguage,
-        );
-      }
-      
-      if (!context.mounted) return;
-      if (vocabulary.isEmpty) {
-        vocabulary = _getDemoVocabulary();
-      }
-
-      Navigator.pop(context);
-
-      if (vocabulary.length < 4) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Need at least 4 vocabulary words to play'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      switch (modeType) {
-        case 'flashcards':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FlashcardsScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-        case 'speed_review':
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => SpeedChallengeScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              )),
-          );
-          break;
-        case 'spelling':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SpellingBeeScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-        case 'listening':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ListeningPracticeScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-
-        case 'word_match':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => WordMatchLauncher(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-        case 'falling_words':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FallingWordsLauncher(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-        case 'vocabulary_quiz':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VocabularyQuizScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-
-        case 'pronunciation':
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PronunciationPracticeScreen(
-                vocabulary: vocabulary,
-                targetLanguage: targetLanguage,
-                nativeLanguage: nativeLanguage,
-              ),
-            ),
-          );
-          break;
-        default:
-          _navigateToAllPracticeModes(context);
-      }
-    } catch (e) {
-      if (Navigator.canPop(context)) Navigator.pop(context);
+    if (modeType != 'all') {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading practice mode: $e'),
-          backgroundColor: Colors.red,
+        const SnackBar(
+          content: Text('Set your session configuration before starting a quiz.'),
+          backgroundColor: AppColors.primaryTeal,
         ),
       );
     }
-  }
-
-  List<VocabularyItem> _getDemoVocabulary() {
-    return [
-      VocabularyItem(
-        id: '1',
-        courseId: 'demo',
-        word: 'Hello',
-        translation: 'Hola',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '2',
-        courseId: 'demo',
-        word: 'Goodbye',
-        translation: 'Adiós',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '3',
-        courseId: 'demo',
-        word: 'Thank you',
-        translation: 'Gracias',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '4',
-        courseId: 'demo',
-        word: 'Please',
-        translation: 'Por favor',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '5',
-        courseId: 'demo',
-        word: 'Water',
-        translation: 'Agua',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '6',
-        courseId: 'demo',
-        word: 'Food',
-        translation: 'Comida',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '7',
-        courseId: 'demo',
-        word: 'Friend',
-        translation: 'Amigo',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-      VocabularyItem(
-        id: '8',
-        courseId: 'demo',
-        word: 'House',
-        translation: 'Casa',
-        difficultyLevel: 1,
-        createdAt: DateTime.now(),
-      ),
-    ];
   }
 
   void _showGuestRestriction(BuildContext context) {

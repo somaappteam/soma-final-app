@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/premium_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_theme.dart';
+import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
-import 'ux_settings_screen.dart';
-import 'debug/tts_debugger_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,87 +21,308 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _isLoading = false;
+  static const _appVersion = '1.0.0+1';
+
+  bool _notificationsEnabled = true;
+  bool _hapticsEnabled = true;
+  bool _soundEffectsEnabled = true;
+  bool _streakProtectionReminder = true;
+  TimeOfDay _reminderTime = const TimeOfDay(hour: 19, minute: 0);
+  TimeOfDay _quietHoursStart = const TimeOfDay(hour: 22, minute: 0);
+  TimeOfDay _quietHoursEnd = const TimeOfDay(hour: 7, minute: 0);
+  String _uiLanguage = 'System';
+  Set<int> _selectedWeekdays = {1, 2, 3, 4, 5, 6, 7};
+
+  final PremiumService _premiumService = PremiumService();
+  final SupabaseService _supabaseService = SupabaseService();
+  bool _isRestoringPurchases = false;
+
+  static const _languageOptions = [
+    'System',
+    'English',
+    'Spanish',
+    'French',
+    'German',
+    'Portuguese',
+    'Arabic',
+    'Japanese',
+  ];
+
+  static const _weekdayLabels = {
+    1: 'M',
+    2: 'T',
+    3: 'W',
+    4: 'T',
+    5: 'F',
+    6: 'S',
+    7: 'S',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
+    setState(() {
+      _notificationsEnabled = prefs.getBool('settings_notifications_enabled') ?? true;
+      _hapticsEnabled = prefs.getBool('settings_haptics_enabled') ?? true;
+      _soundEffectsEnabled = prefs.getBool('settings_sound_effects_enabled') ?? true;
+      _streakProtectionReminder = prefs.getBool('settings_streak_protection_reminder') ?? true;
+      _uiLanguage = prefs.getString('settings_ui_language') ?? 'System';
+
+      final reminderHour = prefs.getInt('settings_reminder_hour') ?? 19;
+      final reminderMinute = prefs.getInt('settings_reminder_minute') ?? 0;
+      _reminderTime = TimeOfDay(hour: reminderHour, minute: reminderMinute);
+
+      final quietStartHour = prefs.getInt('settings_quiet_start_hour') ?? 22;
+      final quietStartMinute = prefs.getInt('settings_quiet_start_minute') ?? 0;
+      _quietHoursStart = TimeOfDay(hour: quietStartHour, minute: quietStartMinute);
+
+      final quietEndHour = prefs.getInt('settings_quiet_end_hour') ?? 7;
+      final quietEndMinute = prefs.getInt('settings_quiet_end_minute') ?? 0;
+      _quietHoursEnd = TimeOfDay(hour: quietEndHour, minute: quietEndMinute);
+
+      final weekdaysRaw = prefs.getStringList('settings_reminder_weekdays');
+      if (weekdaysRaw != null && weekdaysRaw.isNotEmpty) {
+        _selectedWeekdays = weekdaysRaw
+            .map((day) => int.tryParse(day))
+            .whereType<int>()
+            .toSet();
+      }
+    });
+  }
+
+  Future<void> _persistSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('settings_notifications_enabled', _notificationsEnabled);
+    await prefs.setBool('settings_haptics_enabled', _hapticsEnabled);
+    await prefs.setBool('settings_sound_effects_enabled', _soundEffectsEnabled);
+    await prefs.setBool('settings_streak_protection_reminder', _streakProtectionReminder);
+    await prefs.setString('settings_ui_language', _uiLanguage);
+    await prefs.setInt('settings_reminder_hour', _reminderTime.hour);
+    await prefs.setInt('settings_reminder_minute', _reminderTime.minute);
+    await prefs.setInt('settings_quiet_start_hour', _quietHoursStart.hour);
+    await prefs.setInt('settings_quiet_start_minute', _quietHoursStart.minute);
+    await prefs.setInt('settings_quiet_end_hour', _quietHoursEnd.hour);
+    await prefs.setInt('settings_quiet_end_minute', _quietHoursEnd.minute);
+    await prefs.setStringList(
+      'settings_reminder_weekdays',
+      _selectedWeekdays.toList()..sort(),
+    );
+  }
+
+  Future<void> _updateSettings(VoidCallback update) async {
+    setState(update);
+    await _persistSettings();
+  }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final isGuest = authProvider.isGuest;
-    final user = isGuest ? authProvider.guestUser : authProvider.currentUser;
+    final themeProvider = context.watch<ThemeProvider>();
+    final isSignedIn = authProvider.isAuthenticated;
+    final isGuest = authProvider.isGuest || !isSignedIn;
+    final user = isSignedIn ? authProvider.currentUser : authProvider.guestUser;
 
-    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           'Settings',
           style: TextStyle(
-            color: theme.colorScheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _buildProfileHeader(user, isGuest),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildProfileHeader(user, isGuest)),
+          if (isGuest) SliverToBoxAdapter(child: _buildOfflineBanner(context)),
+          SliverToBoxAdapter(
+            child: _buildSection(
+              title: 'Premium Subscription',
+              items: [
+                _buildTile(
+                  icon: Icons.workspace_premium,
+                  title: (isSignedIn && authProvider.isPremium)
+                      ? 'Premium Active'
+                      : 'Upgrade to Premium',
+                  subtitle: (isSignedIn && authProvider.isPremium)
+                      ? 'Manage your current subscription and benefits.'
+                      : 'See pricing, what you get today, and what is coming soon.',
+                  trailing: (isSignedIn && authProvider.isPremium)
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.chevron_right),
+                  onTap: () => _showPremiumSheet(context, isSignedIn),
                 ),
-                if (isGuest)
-                  SliverToBoxAdapter(
-                    child: _buildGuestBanner(context),
-                  ),
-                // Account section - HIDDEN for guests
-                if (!isGuest)
-                  SliverToBoxAdapter(
-                    child: _buildSettingsSection(
-                      title: 'Account',
-                      items: _buildAccountSettings(context, isGuest, authProvider),
-                    ),
-                  ),
-                SliverToBoxAdapter(
-                  child: _buildSettingsSection(
-                    title: 'Preferences',
-                    items: _buildPreferenceSettings(context, isGuest),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _buildSettingsSection(
-                    title: 'Learning',
-                    items: _buildLearningSettings(context, isGuest),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _buildSettingsSection(
-                    title: 'Notifications',
-                    items: _buildNotificationSettings(context, isGuest),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _buildSettingsSection(
-                    title: 'Support',
-                    items: _buildSupportSettings(context),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _buildSettingsSection(
-                    title: 'Legal',
-                    items: _buildLegalSettings(context),
-                  ),
-                ),
-                // Danger Zone - HIDDEN for guests
-                if (!isGuest)
-                  SliverToBoxAdapter(
-                    child: _buildDangerZone(context, authProvider),
-                  ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 40),
+                _buildTile(
+                  icon: Icons.restore,
+                  title: 'Restore Purchases',
+                  subtitle: 'Recover your premium access from previous purchases',
+                  onTap: _isRestoringPurchases ? null : _restorePurchases,
+                  trailing: _isRestoringPurchases
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.chevron_right),
                 ),
               ],
             ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildSection(
+              title: 'App Preferences',
+              items: [
+                _buildTile(
+                  icon: themeProvider.getThemeModeIcon(),
+                  title: 'Theme',
+                  subtitle: themeProvider.getThemeModeName(),
+                  onTap: () => _showThemePicker(context, themeProvider),
+                ),
+                _buildTile(
+                  icon: Icons.language,
+                  title: 'App Language',
+                  subtitle: _uiLanguage,
+                  onTap: _showLanguagePicker,
+                ),
+                SwitchListTile(
+                  value: _notificationsEnabled,
+                  onChanged: (value) => _updateSettings(() => _notificationsEnabled = value),
+                  title: const Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Daily reminders and learning updates'),
+                  secondary: _buildLeadingIcon(Icons.notifications),
+                ),
+                SwitchListTile(
+                  value: _hapticsEnabled,
+                  onChanged: (value) => _updateSettings(() => _hapticsEnabled = value),
+                  title: const Text('Haptics', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Vibration feedback during interactions'),
+                  secondary: _buildLeadingIcon(Icons.vibration),
+                ),
+                SwitchListTile(
+                  value: _soundEffectsEnabled,
+                  onChanged: (value) => _updateSettings(() => _soundEffectsEnabled = value),
+                  title: const Text('Sound Effects', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('UI and gameplay feedback sounds'),
+                  secondary: _buildLeadingIcon(Icons.volume_up),
+                ),
+              ],
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildSection(
+              title: 'Reminder Scheduling',
+              items: [
+                _buildTile(
+                  icon: Icons.alarm,
+                  title: 'Reminder Time',
+                  subtitle: _formatTime(_reminderTime),
+                  onTap: () => _pickTime(
+                    initial: _reminderTime,
+                    onPicked: (time) => _updateSettings(() => _reminderTime = time),
+                  ),
+                ),
+                _buildWeekdaySelector(),
+                SwitchListTile(
+                  value: _streakProtectionReminder,
+                  onChanged: (value) => _updateSettings(() => _streakProtectionReminder = value),
+                  title: const Text('Streak Protection Reminder', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Extra nudge when your streak is at risk'),
+                  secondary: _buildLeadingIcon(Icons.local_fire_department),
+                ),
+                _buildTile(
+                  icon: Icons.nights_stay,
+                  title: 'Quiet Hours Start',
+                  subtitle: _formatTime(_quietHoursStart),
+                  onTap: () => _pickTime(
+                    initial: _quietHoursStart,
+                    onPicked: (time) => _updateSettings(() => _quietHoursStart = time),
+                  ),
+                ),
+                _buildTile(
+                  icon: Icons.wb_sunny,
+                  title: 'Quiet Hours End',
+                  subtitle: _formatTime(_quietHoursEnd),
+                  onTap: () => _pickTime(
+                    initial: _quietHoursEnd,
+                    onPicked: (time) => _updateSettings(() => _quietHoursEnd = time),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildSection(
+              title: 'Support & About',
+              items: [
+                _buildTile(
+                  icon: Icons.support_agent,
+                  title: 'Support',
+                  subtitle: 'Get help, report an issue, or request account changes',
+                  onTap: _showSupportSheet,
+                ),
+                _buildTile(
+                  icon: Icons.info_outline,
+                  title: 'About App',
+                  subtitle: 'Learn about Soma and current release details',
+                  onTap: _showAboutSheet,
+                ),
+                _buildTile(
+                  icon: Icons.new_releases,
+                  title: 'App Version / Build',
+                  subtitle: _appVersion,
+                ),
+              ],
+            ),
+          ),
+          if (isSignedIn)
+            SliverToBoxAdapter(
+              child: _buildSection(
+                title: 'Account',
+                items: [
+                  _buildTile(
+                    icon: Icons.logout,
+                    title: 'Sign Out',
+                    subtitle: 'Use app offline and sign in again any time',
+                    iconColor: Colors.red,
+                    textColor: Colors.red,
+                    onTap: () => _confirmSignOut(context, authProvider),
+                  ),
+                  _buildTile(
+                    icon: Icons.delete_forever,
+                    title: 'Delete Account',
+                    subtitle: 'Request permanent account and cloud data deletion',
+                    iconColor: Colors.red.shade700,
+                    textColor: Colors.red.shade700,
+                    onTap: () => _confirmDeleteAccount(context, authProvider),
+                  ),
+                ],
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeadingIcon(IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.primaryTeal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, color: AppColors.primaryTeal),
     );
   }
 
@@ -116,169 +341,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 3,
-                  ),
-                  image: user?.avatarUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(user!.avatarUrl!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: user?.avatarUrl == null
-                    ? const Icon(
-                        Icons.person,
-                        size: 35,
-                        color: AppColors.primaryTeal,
-                      )
-                    : null,
+          CircleAvatar(
+            radius: 34,
+            backgroundColor: Colors.white,
+            child: Text(
+              (user?.displayName ?? user?.username ?? 'G').toString().substring(0, 1).toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user?.displayName ?? user?.username ?? 'Guest User',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isGuest
-                            ? Colors.orange.withValues(alpha: 0.3)
-                            : Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isGuest ? 'Guest Account' : 'Premium Member',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-          if (!isGuest) ...[
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStat('${user?.totalXP ?? 0}', 'XP'),
-                _buildStat('${user?.currentLevel ?? 1}', 'Level'),
-                _buildStat('${user?.streakDays ?? 0}', 'Streak'),
+                Text(
+                  user?.displayName ?? user?.username ?? 'Offline User',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isGuest ? 'Offline Mode' : 'Signed In',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               ],
             ),
-          ],
+          ),
         ],
       ),
     ).animate().fadeIn().slideY();
   }
 
-  Widget _buildStat(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGuestBanner(BuildContext context) {
+  Widget _buildOfflineBanner(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF8A65), Color(0xFFFF6E40)],
-        ),
+        gradient: AppColors.coralGradient,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Guest Account',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            'Offline first',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
-            'Your progress is saved locally on this device. Create an account to sync across devices and unlock all features!',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 13,
-            ),
+            'Continue learning without an account. Sign in only for sync and subscription.',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.95)),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const RegisterScreen(),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFFFF6E40),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.accentCoral,
+                  ),
+                  child: const Text('Create Account'),
+                ),
               ),
-              child: const Text('Create Account'),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white),
+                  ),
+                  child: const Text('Sign In'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     ).animate().fadeIn();
   }
 
-  Widget _buildSettingsSection({
-    required String title,
-    required List<Widget> items,
-  }) {
+  Widget _buildSection({required String title, required List<Widget> items}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -305,443 +476,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-          child: Column(
-            children: items,
-          ),
+          child: Column(children: items),
         ),
       ],
     );
   }
 
-  List<Widget> _buildAccountSettings(
-    BuildContext context,
-    bool isGuest,
-    AuthProvider authProvider,
-  ) {
-    // Account section is now completely hidden for guests
-    // This method is only called for authenticated users
-    return [
-      _buildSettingsTile(
-        icon: Icons.person,
-        title: 'Edit Profile',
-        subtitle: 'Change name, photo, bio',
-        onTap: () => _showEditProfile(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.email,
-        title: 'Change Email',
-        subtitle: 'Update email address',
-        onTap: () => _showChangeEmail(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.lock,
-        title: 'Change Password',
-        subtitle: 'Update your password',
-        onTap: () => _showChangePassword(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.language,
-        title: 'Languages',
-        subtitle: 'Native & learning languages',
-        onTap: () => _showLanguageSettings(context),
-      ),
-    ];
-  }
-
-  List<Widget> _buildPreferenceSettings(BuildContext context, bool isGuest) {
-    return [
-      _buildSettingsTile(
-        icon: Icons.palette,
-        title: 'Appearance',
-        subtitle: 'Theme: ${context.watch<ThemeProvider>().getThemeModeName()}',
-        onTap: () => _showThemeSelector(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.volume_up,
-        title: 'Sound Effects',
-        subtitle: 'Enable/disable sounds',
-        trailing: Switch(
-          value: true,
-          onChanged: (value) {
-            // Toggle sound
-          },
-        ),
-      ),
-      _buildSettingsTile(
-        icon: Icons.vibration,
-        title: 'Haptic Feedback',
-        subtitle: 'Vibration on actions',
-        trailing: Switch(
-          value: true,
-          onChanged: (value) {
-            // Toggle haptics
-          },
-        ),
-      ),
-      _buildSettingsTile(
-        icon: Icons.accessibility_new,
-        title: 'UX & Accessibility',
-        subtitle: 'Advanced UI settings',
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const UXSettingsScreen()),
-          );
-        },
-      ),
-    ];
-  }
-
-  void _showThemeSelector(BuildContext context) {
-    final themeProvider = context.read<ThemeProvider>();
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Choose Theme',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Select your preferred appearance',
-                  style: TextStyle(
-                    color: AppColors.textMedium,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _buildThemeOption(
-                  context,
-                  'Light',
-                  'Clean and bright',
-                  Icons.light_mode,
-                  AppThemeMode.light,
-                  themeProvider,
-                ),
-                const SizedBox(height: 12),
-                _buildThemeOption(
-                  context,
-                  'Dark',
-                  'Premium modern dark mode',
-                  Icons.dark_mode,
-                  AppThemeMode.dark,
-                  themeProvider,
-                ),
-                const SizedBox(height: 12),
-                _buildThemeOption(
-                  context,
-                  'System',
-                  'Follow device settings',
-                  Icons.brightness_auto,
-                  AppThemeMode.system,
-                  themeProvider,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildThemeOption(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    AppThemeMode mode,
-    ThemeProvider themeProvider,
-  ) {
-    final isSelected = themeProvider.themeMode == mode;
-    
-    return GestureDetector(
-      onTap: () {
-        themeProvider.setThemeMode(mode);
-        Navigator.pop(context);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? AppColors.primaryTeal.withValues(alpha: 0.1)
-              : Colors.grey.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryTeal : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? AppColors.primaryTeal : AppColors.textMedium,
-              size: 28,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? AppColors.textDark : AppColors.textMedium,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: AppColors.primaryTeal,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildLearningSettings(BuildContext context, bool isGuest) {
-    final items = <Widget>[
-      _buildSettingsTile(
-        icon: Icons.timer,
-        title: 'Daily Goal',
-        subtitle: 'Set daily learning target',
-        onTap: () => _showDailyGoalSettings(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.notifications_active,
-        title: 'Reminder Time',
-        subtitle: 'When to remind you to practice',
-        onTap: () => _showReminderSettings(context),
-      ),
-    ];
-
-    if (!isGuest) {
-      items.addAll([
-        _buildSettingsTile(
-          icon: Icons.download,
-          title: 'Offline Content',
-          subtitle: 'Download lessons for offline',
-          onTap: () => _showOfflineContent(context),
-        ),
-        _buildSettingsTile(
-          icon: Icons.speed,
-          title: 'Difficulty',
-          subtitle: 'Adjust learning difficulty',
-          onTap: () => _showDifficultySettings(context),
-        ),
-      ]);
-    }
-
-    return items;
-  }
-
-  List<Widget> _buildNotificationSettings(BuildContext context, bool isGuest) {
-    final items = <Widget>[
-      _buildSettingsTile(
-        icon: Icons.notifications,
-        title: 'Push Notifications',
-        subtitle: 'Enable push notifications',
-        trailing: Switch(
-          value: true,
-          onChanged: (value) {
-            // Toggle notifications
-          },
-        ),
-      ),
-    ];
-
-    if (!isGuest) {
-      items.addAll([
-        _buildSettingsTile(
-          icon: Icons.local_fire_department,
-          title: 'Streak Reminders',
-          subtitle: 'Don\'t break your streak!',
-          trailing: Switch(
-            value: true,
-            onChanged: (value) {
-              // Toggle streak reminders
-            },
-          ),
-        ),
-        _buildSettingsTile(
-          icon: Icons.emoji_events,
-          title: 'Achievement Alerts',
-          subtitle: 'Notify when earning achievements',
-          trailing: Switch(
-            value: true,
-            onChanged: (value) {
-              // Toggle achievement alerts
-            },
-          ),
-        ),
-        _buildSettingsTile(
-          icon: Icons.people,
-          title: 'Friend Activity',
-          subtitle: 'Friends\' progress updates',
-          trailing: Switch(
-            value: true,
-            onChanged: (value) {
-              // Toggle friend activity
-            },
-          ),
-        ),
-      ]);
-    }
-
-    return items;
-  }
-
-  List<Widget> _buildSupportSettings(BuildContext context) {
-    return [
-      _buildSettingsTile(
-        icon: Icons.help_outline,
-        title: 'Help Center',
-        subtitle: 'FAQs and tutorials',
-        onTap: () => _openHelpCenter(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.feedback,
-        title: 'Send Feedback',
-        subtitle: 'Help us improve',
-        onTap: () => _showFeedbackDialog(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.bug_report,
-        title: 'Report a Bug',
-        subtitle: 'Tell us about issues',
-        onTap: () => _showBugReport(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.bug_report_outlined,
-        title: 'TTS Debugger',
-        subtitle: 'Test Kinyarwanda & MMS models',
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TtsDebuggerScreen()),
-          );
-        },
-      ),
-      _buildSettingsTile(
-        icon: Icons.share,
-        title: 'Share App',
-        subtitle: 'Invite friends to learn',
-        onTap: () => _shareApp(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.star,
-        title: 'Rate App',
-        subtitle: 'Rate us on Play Store',
-        onTap: () => _rateApp(context),
-      ),
-    ];
-  }
-
-  List<Widget> _buildLegalSettings(BuildContext context) {
-    return [
-      _buildSettingsTile(
-        icon: Icons.privacy_tip,
-        title: 'Privacy Policy',
-        subtitle: 'How we handle your data',
-        onTap: () => _showPrivacyPolicy(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.description,
-        title: 'Terms of Service',
-        subtitle: 'App usage terms',
-        onTap: () => _showTermsOfService(context),
-      ),
-      _buildSettingsTile(
-        icon: Icons.info,
-        title: 'About',
-        subtitle: 'App version and info',
-        onTap: () => _showAbout(context),
-      ),
-    ];
-  }
-
-  Widget _buildDangerZone(BuildContext context, AuthProvider authProvider) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
-          child: Text(
-            'Danger Zone',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-          ),
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.red.shade200),
-          ),
-          child: Column(
-            children: [
-              _buildSettingsTile(
-                icon: Icons.logout,
-                title: 'Sign Out',
-                subtitle: 'Log out of your account',
-                iconColor: Colors.red,
-                textColor: Colors.red,
-                onTap: () => _showSignOutConfirmation(context, authProvider),
-              ),
-              Divider(height: 1, color: Colors.red.shade200),
-              _buildSettingsTile(
-                icon: Icons.delete_forever,
-                title: 'Delete Account',
-                subtitle: 'Permanently delete your account',
-                iconColor: Colors.red,
-                textColor: Colors.red,
-                onTap: () => _showDeleteAccountConfirmation(context),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingsTile({
+  Widget _buildTile({
     required IconData icon,
     required String title,
     required String subtitle,
-    Widget? trailing,
     VoidCallback? onTap,
+    Widget? trailing,
     Color? iconColor,
     Color? textColor,
   }) {
@@ -752,251 +498,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: (iconColor ?? AppColors.primaryTeal).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(
-          icon,
-          color: iconColor ?? AppColors.primaryTeal,
-        ),
+        child: Icon(icon, color: iconColor ?? AppColors.primaryTeal),
       ),
       title: Text(
         title,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: textColor ?? AppColors.textDark,
-        ),
+        style: TextStyle(fontWeight: FontWeight.bold, color: textColor ?? AppColors.textDark),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          color: textColor?.withValues(alpha: 0.7) ?? AppColors.textMedium,
-          fontSize: 12,
-        ),
+        style: TextStyle(color: textColor?.withValues(alpha: 0.7) ?? AppColors.textMedium, fontSize: 12),
       ),
       trailing: trailing ??
           (onTap != null
-              ? Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: textColor?.withValues(alpha: 0.5) ?? AppColors.textLight,
-                )
+              ? const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textLight)
               : null),
       onTap: onTap,
     );
   }
 
-  // Action Methods
-  void _showEditProfile(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => const EditProfileSheet(),
-    );
-  }
-
-  void _showChangeEmail(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Email'),
-        content: const TextField(
-          decoration: InputDecoration(
-            labelText: 'New Email',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.emailAddress,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Email updated successfully');
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showChangePassword(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Current Password',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            SizedBox(height: 12),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'New Password',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            SizedBox(height: 12),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Confirm New Password',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Password updated successfully');
-            },
-            child: const Text('Update'),
+  Widget _buildWeekdaySelector() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Reminder weekdays', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: List.generate(7, (index) {
+              final day = index + 1;
+              final selected = _selectedWeekdays.contains(day);
+              return ChoiceChip(
+                label: Text(_weekdayLabels[day]!),
+                selected: selected,
+                onSelected: (_) {
+                  _updateSettings(() {
+                    if (selected) {
+                      _selectedWeekdays.remove(day);
+                      if (_selectedWeekdays.isEmpty) _selectedWeekdays.add(day);
+                    } else {
+                      _selectedWeekdays.add(day);
+                    }
+                  });
+                },
+                selectedColor: AppColors.primaryTeal.withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                  color: selected ? AppColors.primaryTeal : AppColors.textMedium,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              );
+            }),
           ),
         ],
       ),
     );
   }
 
-  void _showLanguageSettings(BuildContext context) {
+  Future<void> _pickTime({required TimeOfDay initial, required Future<void> Function(TimeOfDay) onPicked}) async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (time != null) {
+      await onPicked(time);
+    }
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final now = DateTime.now();
+    final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final amPm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $amPm';
+  }
+
+  void _showThemePicker(BuildContext context, ThemeProvider provider) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
+      builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Languages',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
             ListTile(
-              leading: const Text('🇺🇸', style: TextStyle(fontSize: 24)),
-              title: const Text('Native Language'),
-              subtitle: const Text('English'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Text('🇪🇸', style: TextStyle(fontSize: 24)),
-              title: const Text('Learning Language'),
-              subtitle: const Text('Spanish'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDailyGoalSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Daily Learning Goal',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildGoalOption('Casual', '10 min/day', Icons.coffee),
-            _buildGoalOption('Regular', '20 min/day', Icons.schedule),
-            _buildGoalOption('Serious', '30 min/day', Icons.trending_up),
-            _buildGoalOption('Intense', '60 min/day', Icons.whatshot),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGoalOption(String title, String subtitle, IconData icon) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primaryTeal),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: Radio<String>(
-        value: title,
-        groupValue: 'Regular',
-        onChanged: (value) {
-          if (!mounted) return;
-          Navigator.pop(context);
-          _showSuccessSnackbar('Daily goal set to $title');
-        },
-      ),
-      onTap: () {
-        if (!mounted) return;
-        Navigator.pop(context);
-        _showSuccessSnackbar('Daily goal set to $title');
-      },
-    );
-  }
-
-  void _showReminderSettings(BuildContext context) {
-    showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 20, minute: 0),
-    ).then((time) {
-      if (time != null && mounted) {
-        _showSuccessSnackbar(
-          'Reminder set for ${time.format(context)}',
-        );
-      }
-    });
-  }
-
-  void _showOfflineContent(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Offline Content',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const ListTile(
-              leading: Icon(Icons.download_done, color: Colors.green),
-              title: Text('Downloaded'),
-              subtitle: Text('156 MB • 24 lessons'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
+              leading: const Icon(Icons.light_mode),
+              title: const Text('Light'),
+              onTap: () {
+                provider.setThemeMode(AppThemeMode.light);
                 Navigator.pop(context);
-                _showSuccessSnackbar('Downloading new content...');
               },
-              icon: const Icon(Icons.download),
-              label: const Text('Download More'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dark_mode),
+              title: const Text('Dark'),
+              onTap: () {
+                provider.setThemeMode(AppThemeMode.dark);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.brightness_auto),
+              title: const Text('System Default'),
+              onTap: () {
+                provider.setThemeMode(AppThemeMode.system);
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
@@ -1004,101 +611,219 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showDifficultySettings(BuildContext context) {
-    showDialog(
+  void _showLanguagePicker() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Learning Difficulty'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: _languageOptions
+              .map(
+                (language) => RadioListTile<String>(
+                  value: language,
+                  groupValue: _uiLanguage,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _updateSettings(() => _uiLanguage = value);
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('UI language preference saved.')),
+                      );
+                    }
+                  },
+                  title: Text(language),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumFeatureMatrix() {
+    Widget row(String feature, String free, String premium) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
           children: [
-            RadioListTile<String>(
-              title: const Text('Beginner'),
-              subtitle: const Text('Slower pace, more hints'),
-              value: 'beginner',
-              groupValue: 'intermediate',
-              onChanged: (value) {},
-            ),
-            RadioListTile<String>(
-              title: const Text('Intermediate'),
-              subtitle: const Text('Standard learning pace'),
-              value: 'intermediate',
-              groupValue: 'intermediate',
-              onChanged: (value) {},
-            ),
-            RadioListTile<String>(
-              title: const Text('Advanced'),
-              subtitle: const Text('Faster pace, fewer hints'),
-              value: 'advanced',
-              groupValue: 'intermediate',
-              onChanged: (value) {},
-            ),
+            Expanded(flex: 3, child: Text(feature, style: const TextStyle(color: AppColors.textDark))),
+            Expanded(child: Text(free, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textMedium))),
+            Expanded(child: Text(premium, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.primaryTeal, fontWeight: FontWeight.w600))),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          const Row(
+            children: [
+              Expanded(flex: 3, child: Text('Feature', style: TextStyle(fontWeight: FontWeight.bold))),
+              Expanded(child: Text('Free', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),
+              Expanded(child: Text('Premium', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryTeal))),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Difficulty updated');
-            },
-            child: const Text('Save'),
-          ),
+          const SizedBox(height: 8),
+          row('Offline Practice', '✓', '✓'),
+          row('Cloud Sync', '—', '✓'),
+          row('Cross-device backup', '—', '✓'),
+          row('Weekly insights depth', 'Basic', 'Advanced'),
+          row('Priority new modes', '—', '✓'),
         ],
       ),
     );
   }
 
-  void _openHelpCenter(BuildContext context) {
+  Widget _buildPricingCards() {
+    Widget card({
+      required String title,
+      required String price,
+      required String description,
+      bool highlighted = false,
+    }) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: highlighted ? AppColors.primaryTeal.withValues(alpha: 0.08) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: highlighted ? AppColors.primaryTeal : Colors.grey.shade300,
+              width: highlighted ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+              const SizedBox(height: 6),
+              Text(price, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primaryTeal)),
+              const SizedBox(height: 4),
+              Text(description, style: const TextStyle(fontSize: 12, color: AppColors.textMedium)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        card(title: 'Monthly', price: r'$6.99/mo', description: 'Flexible billing'),
+        const SizedBox(width: 10),
+        card(title: 'Yearly', price: r'$49.99/yr', description: 'Best value (save ~40%)', highlighted: true),
+      ],
+    );
+  }
+
+  Widget _buildTagList(String title, List<String> items, {Color? accent}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: accent ?? AppColors.textDark)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items
+              .map(
+                (item) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (accent ?? AppColors.primaryTeal).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(item, style: const TextStyle(fontSize: 12, color: AppColors.textDark)),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  void _showPremiumSheet(BuildContext context, bool isSignedIn) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
         expand: false,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(24),
+        initialChildSize: 0.8,
+        minChildSize: 0.6,
+        maxChildSize: 0.95,
+        builder: (context, controller) => SingleChildScrollView(
+          controller: controller,
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Help Center',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+              const Text('Premium Plans', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text('Choose a plan and unlock advanced sync, deeper analytics, and premium practice experiences.'),
+              const SizedBox(height: 14),
+              _buildPricingCards(),
+              const SizedBox(height: 14),
+              _buildPremiumFeatureMatrix(),
+              const SizedBox(height: 14),
+              _buildTagList(
+                'What\'s included today',
+                const ['Cloud sync', 'Cross-device backup', 'Priority features', 'Advanced analytics'],
+              ),
+              const SizedBox(height: 12),
+              _buildTagList(
+                'Coming soon',
+                const ['Family plan', 'Coach insights', 'Expanded AI speaking drills'],
+                accent: AppColors.accentOrange,
               ),
               const SizedBox(height: 16),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: [
-                    _buildHelpItem('How do I start learning?',
-                        'Select a course and start with the first lesson. Complete lessons to earn XP and level up!'),
-                    _buildHelpItem('What are streaks?',
-                        'Streaks track consecutive days of learning. Keep your streak going by practicing every day!'),
-                    _buildHelpItem('How do I earn XP?',
-                        'Complete lessons, practice vocabulary, and play games to earn XP and level up.'),
-                    _buildHelpItem('Can I learn offline?',
-                        'Yes! Download content in Learning Settings to access lessons without internet.'),
-                    _buildHelpItem('How do I add friends?',
-                        'Go to the Social tab and search for friends by username or email.'),
-                  ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSignedIn
+                      ? () => _openSubscriptionManagement()
+                      : () {
+                          Navigator.pop(context);
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(isSignedIn ? 'Manage Subscription' : 'Create Account to Subscribe'),
                 ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _restorePurchases,
+                  child: const Text('Restore Purchases'),
+                ),
+              ),
+              if (!isSignedIn) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                    },
+                    child: const Text('Sign In'),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              const Text(
+                'Offline mode stays available for everyone. Premium adds sync and account-connected benefits.',
+                style: TextStyle(color: AppColors.textMedium),
               ),
             ],
           ),
@@ -1107,249 +832,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildHelpItem(String question, String answer) {
-    return ExpansionTile(
-      title: Text(
-        question,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Text(answer),
+  Future<void> _restorePurchases() async {
+    if (_isRestoringPurchases) return;
+
+    setState(() => _isRestoringPurchases = true);
+    try {
+      final storeAvailable = await InAppPurchase.instance.isAvailable();
+      if (storeAvailable) {
+        await InAppPurchase.instance.restorePurchases();
+      }
+
+      await _premiumService.restorePurchases();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Restore purchases request sent. Your premium status will refresh shortly.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to restore purchases: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRestoringPurchases = false);
+      }
+    }
+  }
+
+  void _openSubscriptionManagement() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Manage Subscription'),
+        content: const Text(
+          'Use your platform subscription settings to manage or cancel.\n\n'
+          'iOS: Settings > Apple ID > Subscriptions\n'
+          'Android: Play Store > Payments & subscriptions',
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(const ClipboardData(text: 'https://play.google.com/store/account/subscriptions'));
+              Navigator.pop(context);
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(content: Text('Subscription management link copied.')),
+              );
+            },
+            child: const Text('Copy Link'),
+          ),
+          ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Done')),
+        ],
+      ),
+    );
+  }
+
+  void _showSupportSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Support', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text('Need help? Reach out to support and include your app version for faster troubleshooting.'),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.email_outlined, color: AppColors.primaryTeal),
+                title: const Text('support@soma.app'),
+                subtitle: const Text('Support email'),
+                onTap: () {
+                  Clipboard.setData(const ClipboardData(text: 'support@soma.app'));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(content: Text('Support email copied.')),
+                  );
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.bug_report_outlined, color: AppColors.primaryTeal),
+                title: const Text('Report a bug'),
+                subtitle: const Text('Include screenshots and steps to reproduce'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(content: Text('Please email support with issue details and screenshots.')),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAboutSheet() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Soma',
+      applicationVersion: _appVersion,
+      applicationLegalese: '© Soma Learning',
+      children: const [
+        SizedBox(height: 8),
+        Text('Soma helps you learn languages through interactive, gamified practice with offline-first support.'),
       ],
     );
   }
 
-  void _showFeedbackDialog(BuildContext context) {
-    final feedbackController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send Feedback'),
-        content: TextField(
-          controller: feedbackController,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: 'Tell us what you think...',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Thank you for your feedback!');
-            },
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBugReport(BuildContext context) {
-    final bugController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Report a Bug'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Please describe the issue you encountered:',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: bugController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Describe the bug...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Bug report submitted. Thank you!');
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _shareApp(BuildContext context) {
-    Share.share(
-      'Check out Soma - the best way to learn languages! 🌍\n\n'
-      'Download now: https://play.google.com/store/apps/details?id=com.amoslanguages.soma',
-    );
-  }
-
-  void _rateApp(BuildContext context) {
-    _showSuccessSnackbar('Opening Play Store...');
-    // In production, use url_launcher to open Play Store
-  }
-
-  void _showPrivacyPolicy(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Policy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Privacy Policy\n\n'
-            '1. Data Collection\n'
-            'We collect information you provide directly, including your profile data and learning progress.\n\n'
-            '2. Data Usage\n'
-            'We use your data to personalize your learning experience and improve our services.\n\n'
-            '3. Data Protection\n'
-            'Your data is encrypted and stored securely. We never sell your personal information.\n\n'
-            '4. Your Rights\n'
-            'You can request deletion of your data at any time by contacting support.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTermsOfService(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms of Service'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Terms of Service\n\n'
-            '1. Acceptance of Terms\n'
-            'By using Soma, you agree to these terms and conditions.\n\n'
-            '2. User Accounts\n'
-            'You are responsible for maintaining the security of your account.\n\n'
-            '3. Acceptable Use\n'
-            'Users must not abuse the service or engage in harmful behavior.\n\n'
-            '4. Content\n'
-            'All learning content is property of Soma and protected by copyright.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAbout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Center(child: Text('About Soma')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primaryTeal,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Center(
-                child: Text(
-                  'S',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Soma',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Text(
-              'Version 1.0.0',
-              style: TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'AI-powered language learning with fun games and social features.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '© 2025 Amos Languages',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSignOutConfirmation(
-      BuildContext context, AuthProvider authProvider) {
+  void _confirmSignOut(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        content: const Text('You can continue using the app offline after signing out.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              setState(() => _isLoading = true);
               await authProvider.signOut();
-              setState(() => _isLoading = false);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Sign Out'),
           ),
         ],
@@ -1357,197 +966,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showDeleteAccountConfirmation(BuildContext context) {
+  void _confirmDeleteAccount(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'Delete Account',
-          style: TextStyle(color: Colors.red),
-        ),
+        title: const Text('Delete Account'),
         content: const Text(
-          '⚠️ This action cannot be undone!\n\n'
-          'All your progress, achievements, and data will be permanently deleted.\n\n'
-          'Are you absolutely sure?',
+          'This will sign you out and submit a deletion request for your account data. This action is irreversible once processed.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
               Navigator.pop(context);
-              _showFinalDeleteConfirmation(context);
+              try {
+                final userId = authProvider.currentUser?.id;
+                if (userId != null) {
+                  await _supabaseService.client.from('account_deletion_requests').insert({
+                    'user_id': userId,
+                    'status': 'requested',
+                    'requested_at': DateTime.now().toIso8601String(),
+                  });
+                }
+              } catch (_) {
+                // Fallback handled below with support guidance
+              }
+
+              await authProvider.signOut();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Deletion request submitted. If needed, contact support@soma.app.'),
+                ),
+              );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Delete Account'),
           ),
         ],
       ),
     );
   }
-
-  void _showFinalDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Final Confirmation'),
-        content: const TextField(
-          decoration: InputDecoration(
-            labelText: 'Type "DELETE" to confirm',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Account deletion requested');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Permanently Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSuccessSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
 }
-
-class EditProfileSheet extends StatelessWidget {
-  const EditProfileSheet({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Edit Profile',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Stack(
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  size: 50,
-                  color: AppColors.primaryTeal,
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryTeal,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          TextField(
-            decoration: InputDecoration(
-              labelText: 'Display Name',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            decoration: InputDecoration(
-              labelText: 'Bio',
-              hintText: 'Tell us about yourself',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Profile updated successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryTeal,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Save Changes'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-

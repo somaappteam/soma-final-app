@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
+import '../../models/vocabulary_item.dart';
+import '../../theme/app_theme.dart';
 
 /// Image Recognition Mode
 /// Identify objects in images
 class ImageRecognitionScreen extends StatefulWidget {
-  const ImageRecognitionScreen({super.key});
+  final List<VocabularyItem> vocabulary;
+  final String targetLanguage;
+  final String nativeLanguage;
+
+  const ImageRecognitionScreen({
+    super.key,
+    this.vocabulary = const [],
+    this.targetLanguage = 'es',
+    this.nativeLanguage = 'en',
+  });
+
+  const ImageRecognitionScreen.withVocabulary({
+    super.key,
+    required this.vocabulary,
+    required this.targetLanguage,
+    required this.nativeLanguage,
+  });
 
   @override
   State<ImageRecognitionScreen> createState() => _ImageRecognitionScreenState();
@@ -15,8 +33,20 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
   int _currentIndex = 0;
   bool _showResult = false;
   bool _isCorrect = false;
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final total = _images.length;
+    final correct = (_score / 10).round();
+    final accuracy = (total > 0 ? correct / total : 0).clamp(0.0, 1.0);
+    return {
+      'correct': correct,
+      'total': total,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
   
-  final List<Map<String, dynamic>> _images = [
+  final List<Map<String, dynamic>> _defaultImages = [
     {
       'emoji': '🍎',
       'word': 'Manzana',
@@ -48,6 +78,92 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
       'options': ['Árbol', 'Flor', 'Hierba', 'Planta'],
     },
   ];
+
+  late List<Map<String, dynamic>> _images;
+
+  @override
+  void initState() {
+    super.initState();
+    _images = _buildImagesFromVocabulary();
+  }
+
+  List<Map<String, dynamic>> _buildImagesFromVocabulary() {
+    if (widget.vocabulary.length < 4) {
+      return _defaultImages;
+    }
+
+    final words = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
+    final selected = words.take(words.length > 12 ? 12 : words.length).toList();
+
+    return selected.map((item) {
+      final distractors = words
+          .where((w) => w.id != item.id)
+          .map((w) => w.word)
+          .toList()
+        ..shuffle();
+
+      final options = <String>[item.word, ...distractors.take(3)]..shuffle();
+
+      return {
+        'emoji': _emojiForWord(item.word, item.translation),
+        'word': item.word,
+        'translation': item.translation,
+        'options': options,
+      };
+    }).toList();
+  }
+
+  String _emojiForWord(String word, String translation) {
+    final source = '${word.toLowerCase()} ${translation.toLowerCase()}';
+    final map = <String, String>{
+      'apple': '🍎',
+      'banana': '🍌',
+      'orange': '🍊',
+      'bread': '🍞',
+      'water': '💧',
+      'coffee': '☕',
+      'milk': '🥛',
+      'car': '🚗',
+      'bus': '🚌',
+      'train': '🚆',
+      'house': '🏠',
+      'home': '🏠',
+      'school': '🏫',
+      'book': '📚',
+      'phone': '📱',
+      'computer': '💻',
+      'dog': '🐕',
+      'cat': '🐈',
+      'bird': '🐦',
+      'fish': '🐟',
+      'tree': '🌳',
+      'flower': '🌸',
+      'sun': '☀️',
+      'moon': '🌙',
+      'star': '⭐',
+      'heart': '❤️',
+      'manzana': '🍎',
+      'plátano': '🍌',
+      'naranja': '🍊',
+      'agua': '💧',
+      'coche': '🚗',
+      'casa': '🏠',
+      'escuela': '🏫',
+      'libro': '📚',
+      'perro': '🐕',
+      'gato': '🐈',
+      'árbol': '🌳',
+      'flor': '🌸',
+      'sol': '☀️',
+      'luna': '🌙',
+    };
+
+    for (final entry in map.entries) {
+      if (source.contains(entry.key)) return entry.value;
+    }
+
+    return '🖼️';
+  }
 
   void _checkAnswer(String answer) {
     final isCorrect = answer == _images[_currentIndex]['word'];
@@ -83,7 +199,11 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Image Recognition'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context, _buildPracticeResult()),
+        ),
+        title: const Text('Picture Vocabulary Quiz'),
         actions: [
           Center(
             child: Padding(
@@ -137,12 +257,12 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
               height: 250,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                  colors: [AppColors.primaryTeal, AppColors.darkTeal],
                 ),
                 borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF667eea).withOpacity(0.4),
+                    color: AppColors.primaryTeal.withValues(alpha: 0.4),
                     blurRadius: 40,
                     spreadRadius: 10,
                   ),
@@ -160,9 +280,9 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
             
             // Question
             Text(
-              'What is this?',
+              'Select the matching word',
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
@@ -181,7 +301,7 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
                     if (option == currentImage['word']) {
                       buttonColor = Colors.green;
                     } else {
-                      buttonColor = Colors.red.withOpacity(0.3);
+                      buttonColor = Colors.red.withValues(alpha: 0.3);
                     }
                   }
                   

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import 'language_selection_step.dart';
 import 'proficiency_selection_screen.dart';
+import 'learning_style_screen.dart';
 import 'daily_goal_screen.dart';
 import 'notifications_screen.dart';
 import 'onboarding_complete_screen.dart';
@@ -22,6 +23,7 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen> {
   final List<String> _stepTitles = [
     'Select Language',
     'Your Level',
+    'Learning Style',
     'Daily Goal',
     'Stay Motivated',
     'Ready to Learn',
@@ -125,21 +127,28 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen> {
                     onBack: _goBack,
                   ),
                   
-                  // Step 3: Daily Goal
+                  // Step 3: Learning Style
+                  LearningStyleScreen(
+                    onboardingData: _onboardingData,
+                    onNext: _goToNext,
+                    onBack: _goBack,
+                  ),
+
+                  // Step 4: Daily Goal
                   DailyGoalScreen(
                     onboardingData: _onboardingData,
                     onNext: _goToNext,
                     onBack: _goBack,
                   ),
                   
-                  // Step 4: Notifications
+                  // Step 5: Notifications
                   NotificationsScreen(
                     onboardingData: _onboardingData,
                     onNext: _goToNext,
                     onBack: _goBack,
                   ),
                   
-                  // Step 5: Complete
+                  // Step 6: Complete
                   OnboardingCompleteScreen(
                     onboardingData: _onboardingData,
                   ),

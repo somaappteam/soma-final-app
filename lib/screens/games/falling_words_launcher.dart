@@ -183,8 +183,8 @@ class FallingWordsLauncher extends StatelessWidget {
     );
   }
 
-  void _startGame(BuildContext context) {
-    Navigator.pushReplacement(
+  Future<void> _startGame(BuildContext context) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FallingWordsGame(
@@ -194,6 +194,9 @@ class FallingWordsLauncher extends StatelessWidget {
         ),
       ),
     );
+
+    if (!context.mounted) return;
+    Navigator.pop(context, result);
   }
 }
 

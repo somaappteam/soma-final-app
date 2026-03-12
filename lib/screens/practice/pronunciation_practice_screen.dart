@@ -293,7 +293,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _buildPracticeResult()),
                 ),
               ),
               const SizedBox(width: 16),
@@ -961,6 +961,17 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
     );
   }
 
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final accuracy = (_practiceVocabulary.isNotEmpty ? _correctCount / _practiceVocabulary.length : 0).clamp(0.0, 1.0);
+    return {
+      'correct': _correctCount,
+      'total': _practiceVocabulary.length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   Widget _buildResultsActions() {
     return Column(
       children: [
@@ -996,7 +1007,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: BorderSide(color: Colors.grey.shade300),

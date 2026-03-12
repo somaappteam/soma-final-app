@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
-import 'auth/login_screen.dart';
 import 'main_navigation_screen.dart';
+import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -112,32 +113,28 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  void _checkAuthAndNavigate() {
-    final authProvider = context.read<AuthProvider>();
-    
-    if (authProvider.isAuthenticated || authProvider.isGuest) {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const MainNavigationScreen(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const LoginScreen(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    }
+  Future<void> _checkAuthAndNavigate() async {
+    context.read<AuthProvider>();
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasCompletedOnboarding = prefs.getBool('onboarding_completed') ?? false;
+
+    final targetScreen = hasCompletedOnboarding
+        ? const MainNavigationScreen()
+        : const OnboardingScreen();
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => targetScreen,
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override
