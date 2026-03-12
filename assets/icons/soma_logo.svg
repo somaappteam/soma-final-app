@@ -1,0 +1,15 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#6B4EFF" rx="180" ry="180"/>
+  
+  <!-- Inner circle -->
+  <circle cx="512" cy="512" r="350" fill="white" opacity="0.15"/>
+  
+  <!-- S Letter -->
+  <text x="512" y="612" 
+        font-family="Arial, sans-serif" 
+        font-size="500" 
+        font-weight="bold" 
+        fill="white" 
+        text-anchor="middle">S</text>
+</svg>

@@ -1,0 +1,164 @@
+name: soma
+description: Soma - AI-powered language learning with vocabulary games and social features
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # UI & Animations
+  flutter_animate: ^4.3.0
+  confetti: ^0.7.0
+  fl_chart: ^0.65.0
+  google_fonts: ^6.1.0
+  shimmer: ^3.0.0
+  smooth_page_indicator: ^1.1.0
+  percent_indicator: ^4.2.3
+  lottie: ^3.0.0
+  liquid_progress_indicator: ^0.4.0
+  flutter_slidable: ^3.0.0
+  animated_text_kit: ^4.2.2
+  flutter_staggered_animations: ^1.1.1
+  
+  # State Management
+  provider: ^6.1.0
+  flutter_riverpod: ^2.5.1
+  
+  # Supabase Backend
+  supabase_flutter: ^2.5.0
+  
+  # Real-time & WebSocket
+  web_socket_channel: ^3.0.0
+  
+  # Notifications
+  firebase_core: ^4.5.0
+  firebase_messaging: ^16.1.2
+  flutter_local_notifications: ^17.1.2
+  
+  # Authentication
+  google_sign_in: ^6.2.1
+  crypto: ^3.0.3
+  
+  # Storage & Cache
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  cached_network_image: ^3.3.1
+  path_provider: ^2.1.5
+  shared_preferences: ^2.2.3
+  
+  # Image & Media
+  image_picker: ^1.1.2
+  photo_view: ^0.15.0
+  
+  # Network
+  dio: ^5.4.3+1
+  http: ^1.2.0
+  connectivity_plus: ^6.0.3
+  
+  # Date & Time
+  intl: ^0.20.0
+  timeago: ^3.6.1
+  
+  # Share & Deeplinks
+  share_plus: ^12.0.1
+  
+  # Utilities
+  uuid: ^4.4.0
+  logger: ^2.3.0
+  equatable: ^2.0.5
+  json_annotation: ^4.9.0
+  
+  # Analytics & Crash Reporting
+  firebase_analytics: ^12.1.3
+  firebase_crashlytics: ^5.0.8
+  
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+    
+  # Environment
+  flutter_dotenv: ^5.1.0
+  
+  # AI & Machine Learning
+  google_generative_ai: ^0.4.0
+  
+  # Speech Recognition & Text-to-Speech (commented out for compatibility)
+  # speech_to_text: ^6.6.0
+  flutter_tts: ^4.0.0
+  
+  # Audio Recording & Playback (commented out for compatibility)
+  # record: ^5.1.0
+  # just_audio: ^0.9.38
+  # audio_session: ^0.1.21
+  
+  # Video Player
+  video_player: ^2.9.1
+  chewie: ^1.8.1
+  youtube_player_flutter: ^9.0.1
+  
+  # Widgets (Home Screen)
+  home_widget: ^0.6.0
+  
+  # Graph Visualization
+  graphview: ^1.2.0
+  
+  # Calendar
+  table_calendar: ^3.1.2
+  
+  # Rich Text & HTML
+  flutter_markdown: ^0.7.3
+  flutter_html: ^3.0.0-beta.2
+  
+  # Audio Visualization
+  audio_waveforms: ^1.2.0
+  
+  # Permission Handler
+  permission_handler: ^11.3.1
+  
+  # App Tracking Transparency
+  app_tracking_transparency: ^2.0.6
+  
+  # Store Integration
+  in_app_purchase: ^3.2.0
+  
+  # Biometric Authentication
+  local_auth: ^2.3.0
+  onnxruntime: ^1.4.1
+  just_audio: ^0.10.5
+  csv: ^7.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  json_serializable: ^6.8.0
+  hive_generator: ^2.0.1
+  flutter_launcher_icons: ^0.13.1
+
+  supabase: any
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/lottie/
+    - assets/sounds/
+    - assets/database/
+    - .env
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/soma_logo.png"
+  adaptive_icon_background: "#6B4EFF"
+  adaptive_icon_foreground: "assets/icons/soma_logo_foreground.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+
+
