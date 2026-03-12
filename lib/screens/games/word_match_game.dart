@@ -262,7 +262,7 @@ class _WordMatchGameState extends State<WordMatchGame>
             ),
             child: IconButton(
               icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             ),
           ),
           const SizedBox(width: 16),
@@ -896,6 +896,17 @@ class _WordMatchGameState extends State<WordMatchGame>
     );
   }
 
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final accuracy = (_attempts > 0 ? _matches / _attempts : 0).clamp(0.0, 1.0);
+    return {
+      'correct': _matches,
+      'total': _attempts > 0 ? _attempts : widget.vocabulary.length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   Widget _buildResultsActions() {
     return Column(
       children: [
@@ -931,7 +942,7 @@ class _WordMatchGameState extends State<WordMatchGame>
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: BorderSide(color: Colors.grey.shade300),
@@ -1059,7 +1070,7 @@ class WordMatchLauncher extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, _buildPracticeResult()),
                 child: const Text(
                   'Back',
                   style: TextStyle(

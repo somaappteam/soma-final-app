@@ -51,6 +51,16 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
   bool _isCorrect = false;
   bool _isComplete = false;
   bool _showHint = false;
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final accuracy = (_questions.isNotEmpty ? _score / _questions.length : 0).clamp(0.0, 1.0);
+    return {
+      'correct': _score,
+      'total': _questions.length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
   int _hintsUsed = 0;
   Duration _timeElapsed = Duration.zero;
   Timer? _timer;
@@ -205,22 +215,27 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Translation: ${_questions[_currentQuestionIndex].sentenceData['translation']}',
+              _questions[_currentQuestionIndex].sentenceData['hint']?.toString().isNotEmpty == true
+                  ? _questions[_currentQuestionIndex].sentenceData['hint'].toString()
+                  : 'The missing word has ${_questions[_currentQuestionIndex].correctAnswer.length} letters',
               style: const TextStyle(fontSize: 18),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'The missing word has ${_questions[_currentQuestionIndex].correctAnswer.length} letters',
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textMedium,
+            if (_questions[_currentQuestionIndex].sentenceData['hint']?.toString().isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(
+                'The missing word has ${_questions[_currentQuestionIndex].correctAnswer.length} letters',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textMedium,
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, _buildPracticeResult()),
                 child: const Text('Got it!'),
               ),
             ),
@@ -316,7 +331,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _buildPracticeResult()),
                 ),
               ),
               const SizedBox(width: 16),
@@ -471,14 +486,14 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF667eea),
-            Color(0xFF764ba2),
+            AppColors.primaryTeal,
+            AppColors.darkTeal,
           ],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF667eea).withValues(alpha: 0.4),
+            color: AppColors.primaryTeal.withValues(alpha: 0.4),
             blurRadius: 30,
             offset: const Offset(0, 12),
             spreadRadius: -4,
@@ -518,7 +533,32 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             ),
           ),
           const SizedBox(height: 20),
-          if (_showHint)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.translate, color: AppColors.textMedium, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    question.sentenceData['translation']?.toString() ?? '',
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_showHint) ...[
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -531,16 +571,22 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 children: [
                   const Icon(Icons.lightbulb, color: Colors.amber, size: 20),
                   const SizedBox(width: 8),
-                  Text(
-                    'Means: ${question.sentenceData['translation']}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      question.sentenceData['hint']?.toString().isNotEmpty == true
+                          ? question.sentenceData['hint'].toString()
+                          : 'The missing word has ${question.correctAnswer.length} letters',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],
               ),
             ),
+          ],
         ],
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0);
@@ -778,7 +824,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           end: Alignment.bottomCenter,
           colors: isPerfect
               ? [Colors.amber.shade100, Colors.white]
-              : [const Color(0xFF667eea).withValues(alpha: 0.1), Colors.white],
+              : [AppColors.primaryTeal.withValues(alpha: 0.1), Colors.white],
         ),
       ),
       child: SafeArea(
@@ -814,7 +860,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                   colors: [
                     isPerfect
                         ? Colors.amber.withValues(alpha: 0.3)
-                        : const Color(0xFF667eea).withValues(alpha: 0.3),
+                        : AppColors.primaryTeal.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -829,12 +875,12 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                         colors: [Colors.amber, Colors.orange],
                       )
                     : const LinearGradient(
-                        colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                        colors: [AppColors.primaryTeal, AppColors.darkTeal],
                       ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isPerfect ? Colors.amber : const Color(0xFF667eea))
+                    color: (isPerfect ? Colors.amber : AppColors.primaryTeal)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -1031,13 +1077,13 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF667eea),
+              backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 8,
-              shadowColor: const Color(0xFF667eea).withValues(alpha: 0.4),
+              shadowColor: AppColors.primaryTeal.withValues(alpha: 0.4),
             ),
           ),
         ),
@@ -1046,7 +1092,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: BorderSide(color: Colors.grey.shade300),
@@ -1067,4 +1113,3 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
     );
   }
 }
-

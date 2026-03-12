@@ -143,13 +143,12 @@ class _FallingWordsGameState extends State<FallingWordsGame>
   }
 
   void _spawnWord() {
-    if (_fallingWords.length >= 5 || !_isGameActive || _isPaused || !mounted) return;
+    if (_fallingWords.isNotEmpty || !_isGameActive || _isPaused || !mounted) return;
 
     final vocabItem = widget.vocabulary[_random.nextInt(widget.vocabulary.length)];
     
-    if (_fallingWords.any((w) => w.vocabulary.id == vocabItem.id)) return;
-
     setState(() {
+      _fallingWords.clear();
       _fallingWords.add(
         FallingWord(
           vocabulary: vocabItem,
@@ -173,8 +172,8 @@ class _FallingWordsGameState extends State<FallingWordsGame>
       return;
     }
 
-    // Pick a random falling word as target
-    final target = _fallingWords[_random.nextInt(_fallingWords.length)];
+    // Single active falling word is always the target
+    final target = _fallingWords.first;
     setState(() {
       _targetWord = target.vocabulary;
     });
@@ -202,31 +201,12 @@ class _FallingWordsGameState extends State<FallingWordsGame>
   void _checkMatch(String selectedTranslation) {
     if (_targetWord == null || _isPaused) return;
 
-    final matchedWord = _fallingWords.firstWhere(
-      (w) => w.vocabulary.translation == selectedTranslation,
-      orElse: () => FallingWord(
-        vocabulary: VocabularyItem(
-          id: '',
-          courseId: '',
-          word: '',
-          translation: '',
-          difficultyLevel: 1,
-          createdAt: DateTime.now(),
-        ),
-        x: 0,
-        y: 0,
-        speed: 0,
-        id: '',
-      ),
-    );
-
-    if (matchedWord.id.isNotEmpty && 
-        matchedWord.vocabulary.translation == _targetWord!.translation) {
+    if (selectedTranslation == _targetWord!.translation) {
       // Correct match!
       HapticFeedback.mediumImpact();
       
       setState(() {
-        _fallingWords.removeWhere((w) => w.id == matchedWord.id);
+        _fallingWords.clear();
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
         
@@ -239,6 +219,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
         _correctMatches++;
       });
 
+      _spawnWord();
       _setNewTarget();
     } else {
       // Wrong match
@@ -266,25 +247,21 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           _missedWords++;
           _streak = 0;
           _comboMultiplier = 1;
-          
-          // If target word was missed, get new target
-          if (_targetWord?.id == word.vocabulary.id) {
-            _setNewTarget();
-          }
-          
+
           // Remove after delay
           Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) {
               setState(() {
-                _fallingWords.removeWhere((w) => w.id == word.id);
+                _fallingWords.clear();
+                _targetWord = null;
+                _currentOptions = [];
               });
+              _spawnWord();
+              _setNewTarget();
             }
           });
         }
       }
-      
-      // Clean up words that fell off screen
-      _fallingWords.removeWhere((w) => w.y > 0.9);
     });
   }
 
@@ -351,7 +328,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
             ),
             child: IconButton(
               icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             ),
           ),
           const SizedBox(width: 16),
@@ -1036,6 +1013,17 @@ class _FallingWordsGameState extends State<FallingWordsGame>
     );
   }
 
+  Map<String, dynamic> _buildPracticeResult() {
+    final total = _correctMatches + _missedWords;
+    final accuracy = total > 0 ? (_correctMatches / total).clamp(0.0, 1.0) : 0.0;
+    return {
+      'correct': _correctMatches,
+      'total': total,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   Widget _buildResultsActions() {
     return Column(
       children: [
@@ -1073,7 +1061,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: BorderSide(color: Colors.grey.shade300),
@@ -1136,4 +1124,3 @@ class GridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

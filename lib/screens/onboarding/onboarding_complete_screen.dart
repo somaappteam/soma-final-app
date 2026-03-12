@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../services/user_service.dart';
 import '../main_navigation_screen.dart';
@@ -16,7 +17,7 @@ class OnboardingCompleteScreen extends StatefulWidget {
   State<OnboardingCompleteScreen> createState() => _OnboardingCompleteScreenState();
 }
 
-class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen> 
+class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
     with TickerProviderStateMixin {
   late AnimationController _confettiController;
   final UserService _userService = UserService();
@@ -29,7 +30,7 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
       duration: const Duration(seconds: 3),
     );
     _confettiController.forward();
-    
+
     // Save onboarding data after a delay to allow animation to start
     _saveOnboardingData();
   }
@@ -38,9 +39,47 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
     try {
       await _userService.saveOnboardingData(widget.onboardingData);
     } catch (e) {
-      // Handle error (e.g., log it or show a snackbar if critical)
       debugPrint('Error saving onboarding data: $e');
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    await _savePersonalizedPracticeDefaults(prefs);
+    await prefs.setBool('onboarding_completed', true);
+  }
+
+  Future<void> _savePersonalizedPracticeDefaults(SharedPreferences prefs) async {
+    final targetLanguage = (widget.onboardingData['target_language'] ?? 'es').toString();
+    final nativeLanguage = (widget.onboardingData['native_language'] ?? 'en').toString();
+    final proficiency =
+        (widget.onboardingData['proficiency_level'] ?? 'beginner').toString().toLowerCase();
+    final learningStyle =
+        (widget.onboardingData['learning_style'] ?? 'vocabulary').toString().toLowerCase();
+
+    final defaultDifficulty = switch (proficiency) {
+      'advanced' => 'advanced',
+      'intermediate' => 'intermediate',
+      _ => 'beginner',
+    };
+
+    String sentenceCategory = 'all';
+    String vocabCategory = 'all';
+    bool autoDifficulty = true;
+
+    if (learningStyle == 'speaking') {
+      sentenceCategory = 'greetings';
+      autoDifficulty = false;
+    } else if (learningStyle == 'sentences') {
+      sentenceCategory = 'travel';
+    } else {
+      vocabCategory = 'action';
+    }
+
+    final key = 'practice_session_config_default_${targetLanguage}_$nativeLanguage';
+
+    await prefs.setString(
+      key,
+      '{"vocabulary":{"difficulty":"$defaultDifficulty","partOfSpeech":"all","category":"$vocabCategory","questionCount":10,"reviewQueue":"all","autoDifficultyEnabled":$autoDifficulty},"sentences":{"difficulty":"$defaultDifficulty","category":"$sentenceCategory","questionCount":10,"autoDifficultyEnabled":$autoDifficulty}}',
+    );
   }
 
   @override
@@ -49,14 +88,11 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
       backgroundColor: AppColors.cream,
       body: Stack(
         children: [
-          // Confetti animation
           Positioned.fill(
             child: SuccessConfettiAnimation(
               controller: _confettiController,
             ),
           ),
-          
-          // Main content
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -64,8 +100,6 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Spacer(),
-                  
-                  // Success icon
                   Container(
                     width: 150,
                     height: 150,
@@ -86,18 +120,15 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                       size: 80,
                     ),
                   )
-                  .animate()
-                  .scale(
-                    begin: const Offset(0, 0),
-                    end: const Offset(1, 1),
-                    duration: 600.ms,
-                    curve: Curves.elasticOut,
-                  )
-                  .shake(delay: 600.ms, duration: 400.ms),
-                  
+                      .animate()
+                      .scale(
+                        begin: const Offset(0, 0),
+                        end: const Offset(1, 1),
+                        duration: 600.ms,
+                        curve: Curves.elasticOut,
+                      )
+                      .shake(delay: 600.ms, duration: 400.ms),
                   const SizedBox(height: 40),
-                  
-                  // Title
                   const Text(
                     'You\'re All Set!',
                     style: TextStyle(
@@ -107,13 +138,10 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                     ),
                     textAlign: TextAlign.center,
                   )
-                  .animate()
-                  .fadeIn(delay: 300.ms)
-                  .slideY(begin: 0.3, end: 0, delay: 300.ms),
-                  
+                      .animate()
+                      .fadeIn(delay: 300.ms)
+                      .slideY(begin: 0.3, end: 0, delay: 300.ms),
                   const SizedBox(height: 16),
-                  
-                  // Subtitle
                   const Text(
                     'Your personalized learning journey is ready. Let\'s start learning!',
                     style: TextStyle(
@@ -123,13 +151,10 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                     ),
                     textAlign: TextAlign.center,
                   )
-                  .animate()
-                  .fadeIn(delay: 500.ms)
-                  .slideY(begin: 0.3, end: 0, delay: 500.ms),
-                  
+                      .animate()
+                      .fadeIn(delay: 500.ms)
+                      .slideY(begin: 0.3, end: 0, delay: 500.ms),
                   const SizedBox(height: 40),
-                  
-                  // Summary card
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -154,7 +179,10 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                         _buildSummaryRow(
                           icon: Icons.trending_up,
                           label: 'Level',
-                          value: widget.onboardingData['proficiency_level']?.toString().toUpperCase() ?? 'BEGINNER',
+                          value: widget.onboardingData['proficiency_level']
+                                  ?.toString()
+                                  .toUpperCase() ??
+                              'BEGINNER',
                         ),
                         const Divider(height: 24),
                         _buildSummaryRow(
@@ -165,13 +193,10 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                       ],
                     ),
                   )
-                  .animate()
-                  .fadeIn(delay: 700.ms)
-                  .slideY(begin: 0.3, end: 0, delay: 700.ms),
-                  
+                      .animate()
+                      .fadeIn(delay: 700.ms)
+                      .slideY(begin: 0.3, end: 0, delay: 700.ms),
                   const Spacer(),
-                  
-                  // Start button
                   SizedBox(
                     width: double.infinity,
                     height: 60,
@@ -210,13 +235,10 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                       ),
                     ),
                   )
-                  .animate()
-                  .fadeIn(delay: 900.ms)
-                  .slideY(begin: 0.5, end: 0, delay: 900.ms),
-                  
+                      .animate()
+                      .fadeIn(delay: 900.ms)
+                      .slideY(begin: 0.5, end: 0, delay: 900.ms),
                   const SizedBox(height: 20),
-                  
-                  // Motivational text
                   const Text(
                     'First lesson starts in 3... 2... 1...',
                     style: TextStyle(
@@ -224,9 +246,7 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                       color: AppColors.textLight,
                       fontStyle: FontStyle.italic,
                     ),
-                  )
-                  .animate()
-                  .fadeIn(delay: 1100.ms),
+                  ).animate().fadeIn(delay: 1100.ms),
                 ],
               ),
             ),
@@ -307,7 +327,6 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
   }
 }
 
-// Simple confetti animation widget
 class SuccessConfettiAnimation extends StatelessWidget {
   final AnimationController controller;
 
@@ -347,18 +366,18 @@ class ConfettiPainter extends CustomPainter {
       Colors.purple,
       Colors.orange,
     ];
-    
+
     final random = progress * 100;
-    
+
     for (int i = 0; i < 50; i++) {
       final x = (i * 37 + random * 10) % size.width;
       final y = ((i * 23 + random * 50) % size.height) * (1 - progress);
       final color = colors[i % colors.length];
-      
+
       final paint = Paint()
         ..color = color.withValues(alpha: 1 - progress)
         ..style = PaintingStyle.fill;
-      
+
       canvas.drawCircle(
         Offset(x, y),
         5 + (i % 5).toDouble(),
