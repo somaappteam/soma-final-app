@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
+import '../../services/audio_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Premium Word Match Game
@@ -159,6 +160,7 @@ class _WordMatchGameState extends State<WordMatchGame>
           
           _score += 15;
           _totalXP += earnedXP;
+          AudioService().playCorrect();
           
           _selectedWord = null;
           _selectedTranslation = null;
@@ -189,6 +191,7 @@ class _WordMatchGameState extends State<WordMatchGame>
           _selectedWord = null;
           _selectedTranslation = null;
           _isProcessing = false;
+          AudioService().playWrong();
         });
       });
     }
@@ -257,7 +260,7 @@ class _WordMatchGameState extends State<WordMatchGame>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: AppColors.neutralMid.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -338,7 +341,7 @@ class _WordMatchGameState extends State<WordMatchGame>
             icon: Icons.local_fire_department,
             value: '$_streak',
             label: 'Streak',
-            color: Colors.orange,
+            color: AppColors.accentCoral,
             isActive: _streak > 0,
           ),
           if (_comboMultiplier > 1)
@@ -346,7 +349,7 @@ class _WordMatchGameState extends State<WordMatchGame>
               icon: Icons.flash_on,
               value: 'x$_comboMultiplier',
               label: 'Combo',
-              color: Colors.purple,
+              color: AppColors.darkAccentPurple,
               isActive: true,
             )
             .animate()
@@ -435,7 +438,7 @@ class _WordMatchGameState extends State<WordMatchGame>
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: AppColors.neutralLight,
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentCoral),
               minHeight: 10,
             ),
@@ -496,7 +499,7 @@ class _WordMatchGameState extends State<WordMatchGame>
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: AppColors.neutralLight,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -582,7 +585,7 @@ class _WordMatchGameState extends State<WordMatchGame>
               decoration: BoxDecoration(
                 gradient: isMatched
                     ? const LinearGradient(
-                        colors: [Colors.green, Colors.greenAccent],
+                        colors: [AppColors.success, AppColors.success],
                       )
                     : isSelected
                         ? (card.type == CardType.word
@@ -594,10 +597,10 @@ class _WordMatchGameState extends State<WordMatchGame>
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isMatched
-                      ? Colors.green
+                      ? AppColors.success
                       : isSelected
                           ? Colors.transparent
-                          : Colors.grey.shade200,
+                          : AppColors.neutralLight,
                   width: 2,
                 ),
                 boxShadow: [
@@ -653,7 +656,7 @@ class _WordMatchGameState extends State<WordMatchGame>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: isPerfect
-              ? [Colors.amber.shade100, Colors.white]
+              ? [AppColors.warningLight, Colors.white]
               : [AppColors.accentCoral.withValues(alpha: 0.1), Colors.white],
         ),
       ),
@@ -689,7 +692,7 @@ class _WordMatchGameState extends State<WordMatchGame>
                 gradient: RadialGradient(
                   colors: [
                     isPerfect
-                        ? Colors.amber.withValues(alpha: 0.3)
+                        ? AppColors.accentOrange.withValues(alpha: 0.3)
                         : AppColors.accentCoral.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
@@ -702,13 +705,13 @@ class _WordMatchGameState extends State<WordMatchGame>
               decoration: BoxDecoration(
                 gradient: isPerfect
                     ? const LinearGradient(
-                        colors: [Colors.amber, Colors.orange],
+                        colors: [AppColors.accentOrange, AppColors.accentCoral],
                       )
                     : AppColors.coralGradient,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isPerfect ? Colors.amber : AppColors.accentCoral)
+                    color: (isPerfect ? AppColors.accentOrange : AppColors.accentCoral)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -731,7 +734,7 @@ class _WordMatchGameState extends State<WordMatchGame>
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: isPerfect ? Colors.amber.shade700 : AppColors.textDark,
+            color: isPerfect ? AppColors.accentOrange : AppColors.textDark,
           ),
         )
         .animate()
@@ -762,7 +765,7 @@ class _WordMatchGameState extends State<WordMatchGame>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 30,
             offset: const Offset(0, 10),
           ),
@@ -777,7 +780,7 @@ class _WordMatchGameState extends State<WordMatchGame>
                   icon: Icons.check_circle,
                   value: '$_matches',
                   label: 'Matched',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
               const SizedBox(width: 12),
@@ -786,7 +789,7 @@ class _WordMatchGameState extends State<WordMatchGame>
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'XP Earned',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
             ],
@@ -799,7 +802,7 @@ class _WordMatchGameState extends State<WordMatchGame>
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -832,7 +835,7 @@ class _WordMatchGameState extends State<WordMatchGame>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: accuracy >= 80 ? Colors.green : AppColors.accentCoral,
+                      color: accuracy >= 80 ? AppColors.success : AppColors.accentCoral,
                     ),
                   ),
                 ],
@@ -842,9 +845,9 @@ class _WordMatchGameState extends State<WordMatchGame>
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: accuracy / 100,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    accuracy >= 80 ? Colors.green : AppColors.accentCoral,
+                    accuracy >= 80 ? AppColors.success : AppColors.accentCoral,
                   ),
                   minHeight: 12,
                 ),
@@ -945,7 +948,7 @@ class _WordMatchGameState extends State<WordMatchGame>
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1085,6 +1088,15 @@ class WordMatchLauncher extends StatelessWidget {
     );
   }
 
+  Map<String, dynamic> _buildPracticeResult() {
+    return {
+      'correct': 0,
+      'total': vocabulary.length,
+      'accuracy': 0.0,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   void _startGame(BuildContext context) {
     Navigator.push(
       context,
@@ -1098,4 +1110,5 @@ class WordMatchLauncher extends StatelessWidget {
     );
   }
 }
+
 

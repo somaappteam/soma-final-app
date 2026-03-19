@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_theme.dart';
 
 enum AppThemeMode {
   light,
@@ -23,7 +24,7 @@ class ThemeProvider extends ChangeNotifier {
   AppThemeMode _themeMode = AppThemeMode.system;
   FontSize _fontSize = FontSize.normal;
   bool _useTrueBlack = false;
-  Color _accentColor = const Color(0xFF4DB6AC);
+  Color _accentColor = AppColors.brandingAccent;
   
   AppThemeMode get themeMode => _themeMode;
   FontSize get fontSize => _fontSize;
@@ -135,7 +136,7 @@ class ThemeProvider extends ChangeNotifier {
     _accentColor = color;
     
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_accentColorKey, color.value);
+    await prefs.setInt(_accentColorKey, color.toARGB32());
     
     notifyListeners();
   }
@@ -229,3 +230,4 @@ class ThemeProvider extends ChangeNotifier {
     );
   }
 }
+

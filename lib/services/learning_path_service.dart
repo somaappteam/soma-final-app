@@ -1,5 +1,6 @@
 import 'package:logger/logger.dart';
 import '../models/lesson_model.dart';
+import '../models/story_model.dart';
 import 'supabase_service.dart';
 
 class LearningPathService {
@@ -10,9 +11,34 @@ class LearningPathService {
   final Logger _logger = Logger();
   final SupabaseService _supabase = SupabaseService();
 
+  // Get stories for a course
+  Future<List<StoryModel>> getStories(String courseId) async {
+    try {
+      if (_supabase.currentUserId == null) {
+        return _getDemoStories(courseId);
+      }
+
+      final response = await _supabase.client
+          .from('stories')
+          .select()
+          .eq('course_id', courseId);
+
+      return (response as List)
+          .map((json) => StoryModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      _logger.e('Failed to get stories', error: e);
+      return [];
+    }
+  }
+
   // Get the complete learning path for a user in a course
   Future<LearningPath?> getLearningPath(String userId, String courseId) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return _getDemoLearningPath(userId, courseId);
+      }
+
       // Get all lessons for the course
       final lessonsResponse = await _supabase.client
           .from('lessons')
@@ -144,6 +170,10 @@ class LearningPathService {
   // Get recommended next lessons for a user
   Future<List<LessonModel>> getRecommendedLessons(String userId, String courseId, {int limit = 3}) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return _getDemoRecommendedLessons(courseId);
+      }
+
       final path = await getLearningPath(userId, courseId);
       if (path == null) return [];
 
@@ -174,6 +204,13 @@ class LearningPathService {
   // Get weak areas for targeted practice
   Future<List<Map<String, dynamic>>> getWeakAreas(String userId, String courseId) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return [
+          {'category': 'Grammar', 'concept': 'Verbs', 'mistake_count': 5, 'related_lessons': ['l1']},
+          {'category': 'Vocabulary', 'concept': 'Food', 'mistake_count': 3, 'related_lessons': ['l3']},
+        ];
+      }
+
       // Get user's lesson attempts with mistakes
       final response = await _supabase.client
           .from('user_lessons')
@@ -246,6 +283,10 @@ class LearningPathService {
     List<String>? strengths,
   }) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return; // Offline progress not persisted for now
+      }
+
       final existingResponse = await _supabase.client
           .from('user_lessons')
           .select()
@@ -330,6 +371,8 @@ class LearningPathService {
   // Detect user's learning style based on their behavior
   Future<String> detectLearningStyle(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return 'visual';
+
       // Get user's lesson history with types
       final response = await _supabase.client
           .from('user_lessons')
@@ -414,6 +457,8 @@ class LearningPathService {
   // Update user's learning style
   Future<void> updateLearningStyle(String userId, String learningStyle) async {
     try {
+      if (_supabase.currentUserId == null) return;
+
       await _supabase.client
           .from('user_learning_profiles')
           .upsert({
@@ -429,6 +474,8 @@ class LearningPathService {
   // Get adaptive difficulty level recommendation
   Future<int> getRecommendedDifficulty(String userId, String courseId) async {
     try {
+      if (_supabase.currentUserId == null) return 1;
+
       // Get recent lesson scores
       final response = await _supabase.client
           .from('user_lessons')
@@ -464,5 +511,57 @@ class LearningPathService {
       _logger.e('Failed to get recommended difficulty', error: e);
       return 1;
     }
+  }
+
+  // --- Offline Demo Data Fallbacks ---
+
+  List<StoryModel> _getDemoStories(String courseId) {
+    return [
+      StoryModel(
+        id: 's1',
+        courseId: courseId,
+        title: 'The Lost Keys',
+        description: 'A beginner story about finding lost items.',
+        difficultyLevel: 1,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      StoryModel(
+        id: 's2',
+        courseId: courseId,
+        title: 'A Trip to the Market',
+        description: 'Learn food vocabulary in context.',
+        difficultyLevel: 2,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+  }
+
+  LearningPath _getDemoLearningPath(String userId, String courseId) {
+    final nodes = [
+      LearningPathNode(lessonId: 'l1', title: 'Basics 1', isUnlocked: true, isCompleted: true, difficultyLevel: 1, nextNodes: ['l2']),
+      LearningPathNode(lessonId: 'l2', title: 'Greetings', isUnlocked: true, isCompleted: false, difficultyLevel: 1, nextNodes: ['l3'], recommendationReason: 'Continue where you left off'),
+      LearningPathNode(lessonId: 'l3', title: 'Food', isUnlocked: false, isCompleted: false, difficultyLevel: 1, nextNodes: [], recommendationReason: 'Complete previous lessons to unlock'),
+    ];
+    return LearningPath(userId: userId, courseId: courseId, nodes: nodes, currentLevel: 1, learningStyle: 'visual', generatedAt: DateTime.now());
+  }
+
+  List<LessonModel> _getDemoRecommendedLessons(String courseId) {
+    return [
+      LessonModel(
+        id: 'l2',
+        courseId: courseId,
+        title: 'Greetings',
+        description: 'Learn how to say hello.',
+        content: {},
+        lessonType: 'vocabulary',
+        difficultyLevel: 1,
+        orderIndex: 1,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
   }
 }

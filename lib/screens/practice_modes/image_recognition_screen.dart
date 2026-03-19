@@ -228,8 +228,8 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
                 margin: const EdgeInsets.only(top: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange.shade600, Colors.red.shade600],
+                  gradient: const LinearGradient(
+                    colors: [AppColors.accentCoral, AppColors.error],
                   ),
                   borderRadius: BorderRadius.circular(25),
                 ),
@@ -299,9 +299,9 @@ class _ImageRecognitionScreenState extends State<ImageRecognitionScreen> {
                   
                   if (_showResult) {
                     if (option == currentImage['word']) {
-                      buttonColor = Colors.green;
+                      buttonColor = AppColors.success;
                     } else {
-                      buttonColor = Colors.red.withValues(alpha: 0.3);
+                      buttonColor = AppColors.error.withValues(alpha: 0.3);
                     }
                   }
                   

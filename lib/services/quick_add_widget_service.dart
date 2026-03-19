@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_theme.dart';
 
 /// Quick Add Widget configuration for home screen
 class QuickAddWidgetService {
@@ -228,13 +229,13 @@ extension QuickAddTypeExtension on QuickAddType {
   Color get color {
     switch (this) {
       case QuickAddType.quickSession:
-        return Colors.green;
+        return AppColors.success;
       case QuickAddType.addVocabulary:
-        return Colors.blue;
+        return AppColors.primaryTeal;
       case QuickAddType.startLesson:
-        return Colors.orange;
+        return AppColors.accentCoral;
       case QuickAddType.practiceMode:
-        return Colors.purple;
+        return AppColors.darkAccentPurple;
     }
   }
 }
@@ -308,7 +309,7 @@ class QuickAddWidgetPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: type.color.withOpacity(0.4),
+            color: type.color.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -332,3 +333,4 @@ class QuickAddWidgetPreview extends StatelessWidget {
     );
   }
 }
+

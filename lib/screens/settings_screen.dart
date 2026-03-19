@@ -12,6 +12,7 @@ import '../services/supabase_service.dart';
 import '../theme/app_theme.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
+import 'settings/storage_management_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -112,7 +113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setInt('settings_quiet_end_minute', _quietHoursEnd.minute);
     await prefs.setStringList(
       'settings_reminder_weekdays',
-      _selectedWeekdays.toList()..sort(),
+      _selectedWeekdays.map((e) => e.toString()).toList()..sort(),
     );
   }
 
@@ -159,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? 'Manage your current subscription and benefits.'
                       : 'See pricing, what you get today, and what is coming soon.',
                   trailing: (isSignedIn && authProvider.isPremium)
-                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      ? const Icon(Icons.check_circle, color: AppColors.success)
                       : const Icon(Icons.chevron_right),
                   onTap: () => _showPremiumSheet(context, isSignedIn),
                 ),
@@ -215,6 +216,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Sound Effects', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: const Text('UI and gameplay feedback sounds'),
                   secondary: _buildLeadingIcon(Icons.volume_up),
+                ),
+              ],
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildSection(
+              title: 'Data & Storage',
+              items: [
+                _buildTile(
+                  icon: Icons.storage,
+                  title: 'Storage Management',
+                  subtitle: 'Manage downloaded TTS voices for offline learning',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const StorageManagementScreen()),
+                  ),
                 ),
               ],
             ),
@@ -294,16 +311,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.logout,
                     title: 'Sign Out',
                     subtitle: 'Use app offline and sign in again any time',
-                    iconColor: Colors.red,
-                    textColor: Colors.red,
+                    iconColor: AppColors.error,
+                    textColor: AppColors.error,
                     onTap: () => _confirmSignOut(context, authProvider),
                   ),
                   _buildTile(
                     icon: Icons.delete_forever,
                     title: 'Delete Account',
                     subtitle: 'Request permanent account and cloud data deletion',
-                    iconColor: Colors.red.shade700,
-                    textColor: Colors.red.shade700,
+                    iconColor: AppColors.error,
+                    textColor: AppColors.error,
                     onTap: () => _confirmDeleteAccount(context, authProvider),
                   ),
                 ],
@@ -619,20 +636,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shrinkWrap: true,
           children: _languageOptions
               .map(
-                (language) => RadioListTile<String>(
+                (language) => RadioListTile<String>.adaptive(
                   value: language,
                   groupValue: _uiLanguage,
+                  title: Text(language),
                   onChanged: (value) async {
                     if (value == null) return;
                     await _updateSettings(() => _uiLanguage = value);
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        const SnackBar(content: Text('UI language preference saved.')),
-                      );
-                    }
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('UI language preference saved.')),
+                    );
                   },
-                  title: Text(language),
                 ),
               )
               .toList(),
@@ -696,7 +712,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: highlighted ? AppColors.primaryTeal.withValues(alpha: 0.08) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: highlighted ? AppColors.primaryTeal : Colors.grey.shade300,
+              color: highlighted ? AppColors.primaryTeal : AppColors.neutralMid,
               width: highlighted ? 1.5 : 1,
             ),
           ),
@@ -844,9 +860,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       await _premiumService.restorePurchases();
 
+      // Immediately refresh the subscription badge in the UI
+      if (mounted) {
+        await context.read<AuthProvider>().refreshSubscriptionStatus();
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restore purchases request sent. Your premium status will refresh shortly.')),
+        const SnackBar(content: Text('Purchases restored. Your premium status has been refreshed.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -977,7 +998,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () async {
               Navigator.pop(context);
               try {
@@ -994,7 +1015,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
 
               await authProvider.signOut();
-              if (!mounted) return;
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Deletion request submitted. If needed, contact support@soma.app.'),

@@ -57,10 +57,12 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.translate,
-                size: 80,
-                color: AppColors.primaryTeal,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(40),
+                child: Image.asset(
+                  'assets/icons/soma logo.jpeg',
+                  fit: BoxFit.cover,
+                ),
               ),
             )
             .animate(controller: _controller)
@@ -115,7 +117,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkAuthAndNavigate() async {
     context.read<AuthProvider>();
-
     final prefs = await SharedPreferences.getInstance();
     final hasCompletedOnboarding = prefs.getBool('onboarding_completed') ?? false;
 

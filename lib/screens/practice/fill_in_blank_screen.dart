@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
 
 class ClozeQuestion {
   final Map<String, dynamic> sentenceData;
@@ -135,6 +136,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
       _selectedAnswer = option;
       
       if (isCorrect) {
+        AudioService().playCorrect();
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
         
@@ -154,6 +156,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           context: context,
         );
       } else {
+        AudioService().playWrong();
         _streak = 0;
         _shakeController.forward(from: 0);
       }
@@ -199,12 +202,12 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: AppColors.neutralMid,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 24),
-            const Icon(Icons.lightbulb, color: Colors.amber, size: 48),
+            const Icon(Icons.lightbulb, color: AppColors.accentOrange, size: 48),
             const SizedBox(height: 16),
             const Text(
               'Hint',
@@ -326,7 +329,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
+                  color: AppColors.neutralMid.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
@@ -378,7 +381,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: AppColors.neutralLight,
                         valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
                         minHeight: 8,
                       ),
@@ -415,7 +418,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             icon: Icons.local_fire_department,
             value: '$_streak',
             label: 'Streak',
-            color: Colors.orange,
+            color: AppColors.accentCoral,
             isActive: _streak > 0,
           ),
           _buildStatItem(
@@ -429,7 +432,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             icon: Icons.lightbulb_outline,
             value: '$_hintsUsed',
             label: 'Hints',
-            color: Colors.amber,
+            color: AppColors.accentOrange,
             isActive: _hintsUsed > 0,
           ),
         ],
@@ -562,14 +565,14 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.2),
+                color: AppColors.accentOrange.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                border: Border.all(color: AppColors.accentOrange.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.lightbulb, color: Colors.amber, size: 20),
+                  const Icon(Icons.lightbulb, color: AppColors.accentOrange, size: 20),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
@@ -608,8 +611,8 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 fontWeight: FontWeight.bold,
                 decoration: TextDecoration.underline,
                 decorationThickness: 3,
-                decorationColor: _isCorrect ? Colors.green.shade300 : Colors.red.shade300,
-                color: _isCorrect ? Colors.green.shade300 : Colors.red.shade300,
+                decorationColor: _isCorrect ? AppColors.success : AppColors.error,
+                color: _isCorrect ? AppColors.success : AppColors.error,
               ),
             ),
           );
@@ -668,16 +671,16 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
     
     if (_answered) {
       if (option.toLowerCase() == question.correctAnswer.toLowerCase()) {
-        backgroundColor = Colors.green.shade50;
-        borderColor = Colors.green;
-        textColor = Colors.green.shade700;
+        backgroundColor = AppColors.success;
+        borderColor = AppColors.success;
+        textColor = AppColors.success;
       } else if (option == _selectedAnswer) {
-        backgroundColor = Colors.red.shade50;
-        borderColor = Colors.red;
-        textColor = Colors.red.shade700;
+        backgroundColor = AppColors.error;
+        borderColor = AppColors.error;
+        textColor = AppColors.error;
       } else {
-        backgroundColor = Colors.grey.shade100;
-        borderColor = Colors.grey.shade300;
+        backgroundColor = AppColors.neutralLight;
+        borderColor = AppColors.neutralMid;
         textColor = AppColors.textMedium;
       }
     }
@@ -701,9 +704,9 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
         child: Row(
           children: [
             if (_answered && option.toLowerCase() == question.correctAnswer.toLowerCase())
-              Icon(Icons.check_circle, color: Colors.green.shade600, size: 24)
+              const Icon(Icons.check_circle, color: AppColors.success, size: 24)
             else if (_answered && option == _selectedAnswer && !_isCorrect)
-              Icon(Icons.cancel, color: Colors.red.shade600, size: 24)
+              const Icon(Icons.cancel, color: AppColors.error, size: 24)
             else
               Icon(Icons.radio_button_unchecked, color: borderColor, size: 24),
             const SizedBox(width: 12),
@@ -742,10 +745,10 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: _isCorrect ? Colors.green.shade50 : Colors.red.shade50,
+          color: _isCorrect ? AppColors.success : AppColors.error,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _isCorrect ? Colors.green.shade200 : Colors.red.shade200,
+            color: _isCorrect ? AppColors.success : AppColors.error,
             width: 2,
           ),
         ),
@@ -753,7 +756,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           children: [
             Icon(
               _isCorrect ? Icons.check_circle : Icons.error,
-              color: _isCorrect ? Colors.green.shade600 : Colors.red.shade600,
+              color: _isCorrect ? AppColors.success : AppColors.error,
               size: 32,
             ),
             const SizedBox(width: 16),
@@ -766,15 +769,15 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: _isCorrect ? Colors.green.shade700 : Colors.red.shade700,
+                      color: _isCorrect ? AppColors.success : AppColors.error,
                     ),
                   ),
                   if (!_isCorrect)
                     Text(
                       'The correct answer is: ${question.correctAnswer}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: Colors.red.shade600,
+                        color: AppColors.error,
                       ),
                     ),
                 ],
@@ -803,8 +806,8 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           ),
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.amber.shade700,
-          side: BorderSide(color: Colors.amber.shade300, width: 2),
+          foregroundColor: AppColors.accentOrange,
+          side: const BorderSide(color: AppColors.accentOrange, width: 2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -823,7 +826,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: isPerfect
-              ? [Colors.amber.shade100, Colors.white]
+              ? [AppColors.accentOrange, Colors.white]
               : [AppColors.primaryTeal.withValues(alpha: 0.1), Colors.white],
         ),
       ),
@@ -859,7 +862,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 gradient: RadialGradient(
                   colors: [
                     isPerfect
-                        ? Colors.amber.withValues(alpha: 0.3)
+                        ? AppColors.accentOrange.withValues(alpha: 0.3)
                         : AppColors.primaryTeal.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
@@ -872,7 +875,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
               decoration: BoxDecoration(
                 gradient: isPerfect
                     ? const LinearGradient(
-                        colors: [Colors.amber, Colors.orange],
+                        colors: [AppColors.accentOrange, AppColors.accentCoral],
                       )
                     : const LinearGradient(
                         colors: [AppColors.primaryTeal, AppColors.darkTeal],
@@ -880,7 +883,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isPerfect ? Colors.amber : AppColors.primaryTeal)
+                    color: (isPerfect ? AppColors.accentOrange : AppColors.primaryTeal)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -901,7 +904,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: isPerfect ? Colors.amber.shade700 : AppColors.textDark,
+            color: isPerfect ? AppColors.accentOrange : AppColors.textDark,
           ),
         ),
         const SizedBox(height: 8),
@@ -942,7 +945,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                   icon: Icons.check_circle,
                   value: '$_score/${_questions.length}',
                   label: 'Correct',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
               const SizedBox(width: 12),
@@ -951,7 +954,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'XP Earned',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
             ],
@@ -964,7 +967,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -973,7 +976,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                   icon: Icons.lightbulb,
                   value: '$_hintsUsed',
                   label: 'Hints Used',
-                  color: Colors.blue,
+                  color: AppColors.primaryTeal,
                 ),
               ),
             ],
@@ -1007,10 +1010,10 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: _score / _questions.length,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
                     _score == _questions.length
-                        ? Colors.amber
+                        ? AppColors.accentOrange
                         : AppColors.primaryTeal,
                   ),
                   minHeight: 12,
@@ -1095,7 +1098,7 @@ class _FillInBlankScreenState extends State<FillInBlankScreen>
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

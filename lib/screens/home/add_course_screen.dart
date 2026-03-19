@@ -117,7 +117,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: AppColors.neutralMid.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -126,23 +126,23 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Add New Course',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Choose your language pair',
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textMedium,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],
@@ -170,7 +170,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                             colors: [AppColors.primaryTeal, AppColors.darkTeal],
                           )
                         : null,
-                    color: _currentStep >= 0 ? null : Colors.grey.shade300,
+                    color: _currentStep >= 0 ? null : AppColors.neutralMid,
                     shape: BoxShape.circle,
                     boxShadow: _currentStep >= 0
                         ? [
@@ -192,7 +192,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                 Text(
                   'I Speak',
                   style: TextStyle(
-                    color: _currentStep >= 0 ? AppColors.primaryTeal : Colors.grey,
+                    color: _currentStep >= 0 ? AppColors.primaryTeal : AppColors.neutralMid,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -209,7 +209,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                       colors: [AppColors.primaryTeal, AppColors.darkTeal],
                     )
                   : null,
-              color: _currentStep >= 1 ? null : Colors.grey.shade300,
+              color: _currentStep >= 1 ? null : AppColors.neutralMid,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -225,7 +225,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                             colors: [AppColors.primaryTeal, AppColors.darkTeal],
                           )
                         : null,
-                    color: _currentStep >= 1 ? null : Colors.grey.shade300,
+                    color: _currentStep >= 1 ? null : AppColors.neutralMid,
                     shape: BoxShape.circle,
                     boxShadow: _currentStep >= 1
                         ? [
@@ -247,7 +247,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                 Text(
                   'I Learn',
                   style: TextStyle(
-                    color: _currentStep >= 1 ? AppColors.primaryTeal : Colors.grey,
+                    color: _currentStep >= 1 ? AppColors.primaryTeal : AppColors.neutralMid,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -304,9 +304,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textMedium,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],
@@ -336,7 +336,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                 borderSide: BorderSide.none,
               ),
               filled: true,
-              fillColor: Colors.grey.shade100,
+              fillColor: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkElevated 
+                  : AppColors.neutralLight,
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
           ),
@@ -438,7 +440,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                     colors: [AppColors.primaryTeal, AppColors.darkTeal],
                   )
                 : null,
-            color: isSelected ? null : Colors.grey.shade100,
+            color: isSelected ? null : (Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkElevated 
+                : AppColors.neutralLight),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Center(
@@ -469,7 +473,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkElevated.withValues(alpha: 0.5) 
+                    : AppColors.neutralLight,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -509,7 +515,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.warning_amber, color: Colors.orange),
+            Icon(Icons.warning_amber, color: AppColors.accentCoral),
             SizedBox(width: 8),
             Text('Course Already Exists'),
           ],
@@ -604,7 +610,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkElevated 
+                    : AppColors.neutralLight,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -638,28 +646,36 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
           ),
           ElevatedButton.icon(
             onPressed: () async {
-              Navigator.pop(context);
-              
+              // Capture providers before popping context
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               final courseProvider = context.read<CourseProvider>();
+              final appState = context.read<AppState>();
+              final nativeLang = LanguageModel.getByCode(_selectedNativeLanguage!);
+              final targetLang = LanguageModel.getByCode(_selectedTargetLanguage!);
+              if (nativeLang == null || targetLang == null) return;
+
+              final native = Language(nativeLang.code, nativeLang.name, nativeLang.flag, nativeLang.nativeName);
+              final target = Language(targetLang.code, targetLang.name, targetLang.flag, targetLang.nativeName);
+
+              navigator.pop();
+
               await courseProvider.addCourse(
                 nativeLanguage: _selectedNativeLanguage!,
                 targetLanguage: _selectedTargetLanguage!,
               );
 
-              // Trigger app state to select and potentially download TTS
-              final appState = context.read<AppState>();
-              final native = Language(nativeLang!.code, nativeLang.name, nativeLang.flag, nativeLang.nativeName);
-              final target = Language(targetLang!.code, targetLang.name, targetLang.flag, targetLang.nativeName);
-              appState.selectLanguages(native, target);
-
               if (!mounted) return;
 
+              // Trigger app state to select and potentially download TTS
+              appState.selectLanguages(native, target);
+
               if (courseProvider.error == null) {
-                // Return to previous screen (Note: the downloading overlay will handle showing progress on top)
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
+                // Return to previous screen
+                navigator.pop();
+                messenger.showSnackBar(
                   SnackBar(
-                    content: Text('🎉 Started learning ${targetLang.name}!'),
+                    content: Text('🎉 Started learning ${target.name}!'),
                     backgroundColor: AppColors.primaryTeal,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
@@ -668,10 +684,10 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                   ),
                 );
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(courseProvider.error!),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.error,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -694,7 +710,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
   }
 
   Widget _buildDownloadOverlay(AppState appState) {
-    if (!appState.isTtsDownloading) return const SizedBox.shrink();
+    if (!appState.isTtsDownloading || appState.hideTtsOverlay) return const SizedBox.shrink();
 
     return Container(
       color: Colors.black54,
@@ -703,7 +719,9 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 32),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkElevated 
+                : Colors.white,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
@@ -753,6 +771,19 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryTeal,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  appState.hideTtsOverlayForNow();
+                  if (mounted && Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text(
+                  'Download in Background',
+                  style: TextStyle(color: AppColors.textMedium, fontWeight: FontWeight.bold),
                 ),
               ),
             ],

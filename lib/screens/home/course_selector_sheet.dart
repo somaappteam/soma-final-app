@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../../models/course_model.dart';
+import '../../models/language.dart';
 import '../../providers/course_provider.dart';
+import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../services/sound_service.dart';
 import 'add_course_screen.dart';
 
 class CourseSelectorSheet extends StatefulWidget {
@@ -35,9 +39,9 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color ?? Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -59,7 +63,9 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
       width: 40,
       height: 4,
       decoration: BoxDecoration(
-        color: Colors.grey.shade300,
+        color: Theme.of(context).brightness == Brightness.dark 
+            ? Colors.white.withValues(alpha: 0.1) 
+            : AppColors.neutralMid,
         borderRadius: BorderRadius.circular(2),
       ),
     );
@@ -112,7 +118,9 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: Colors.grey.shade100,
+          fillColor: Theme.of(context).brightness == Brightness.dark 
+              ? AppColors.darkElevated 
+              : AppColors.neutralLight,
         ),
       ),
     );
@@ -145,14 +153,14 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
           Icon(
             Icons.school_outlined,
             size: 64,
-            color: Colors.grey.shade400,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
             'No courses yet',
             style: TextStyle(
               fontSize: 18,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -160,7 +168,7 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
           Text(
             'Add your first course to start learning!',
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -180,7 +188,7 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
           children: [
             SlidableAction(
               onPressed: (_) => _showDeleteConfirmation(course),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
               icon: Icons.delete,
               label: 'Delete',
@@ -199,7 +207,9 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
           child: InkWell(
             onTap: () {
               if (!isActive) {
-                _showSwitchConfirmation(course);
+                HapticFeedback.lightImpact();
+                SoundService().playPop();
+                _switchActiveCourse(course);
               }
             },
             borderRadius: BorderRadius.circular(16),
@@ -207,17 +217,20 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.tealGradient,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Center(
-                      child: Text(
-                        course.targetLanguageFlag,
-                        style: const TextStyle(fontSize: 32),
+                  Hero(
+                    tag: 'course_flag_${course.id}',
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.tealGradient,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Text(
+                          course.targetLanguageFlag,
+                          style: const TextStyle(fontSize: 32),
+                        ),
                       ),
                     ),
                   ),
@@ -262,17 +275,17 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
                         Text(
                           'From ${course.nativeLanguageFlag} ${course.nativeLanguageName}',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             fontSize: 14,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.star,
                               size: 16,
-                              color: Colors.amber.shade600,
+                              color: AppColors.accentOrange,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -280,10 +293,10 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(width: 16),
-                            Icon(
+                            const Icon(
                               Icons.trending_up,
                               size: 16,
-                              color: Colors.grey.shade600,
+                              color: AppColors.neutralDark,
                             ),
                             const SizedBox(width: 4),
                             Text('Level ${course.currentLevel}'),
@@ -311,7 +324,7 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardTheme.color ?? Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -325,14 +338,17 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const AddCourseScreen(),
                 ),
               );
+              // Reload courses list after returning from AddCourseScreen
+              if (mounted) {
+                await context.read<CourseProvider>().loadCourses();
+              }
             },
             icon: const Icon(Icons.add),
             label: const Text(
@@ -375,12 +391,12 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('${course.targetLanguageName} course deleted'),
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.error,
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete'),
@@ -390,34 +406,29 @@ class _CourseSelectorSheetState extends State<CourseSelectorSheet> {
     );
   }
 
-  void _showSwitchConfirmation(CourseModel course) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Switch Course?'),
-        content: Text(
-          'Do you want to switch to learning ${course.targetLanguageName}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-              context.read<CourseProvider>().setActiveCourse(course.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Switched to ${course.targetLanguageName}'),
-                  backgroundColor: AppColors.primaryTeal,
-                ),
-              );
-            },
-            child: const Text('Switch'),
-          ),
-        ],
+  void _switchActiveCourse(CourseModel course) {
+    // Immediately set the course as active and close the sheet
+    context.read<CourseProvider>().setActiveCourse(course.id);
+
+    // Sync AppState so the home screen header updates
+    final nativeLang = LanguageModel.getByCode(course.nativeLanguage);
+    final targetLang = LanguageModel.getByCode(course.targetLanguage);
+    if (nativeLang != null && targetLang != null) {
+      final appState = context.read<AppState>();
+      final native = Language(nativeLang.code, nativeLang.name, nativeLang.flag, nativeLang.nativeName);
+      final target = Language(targetLang.code, targetLang.name, targetLang.flag, targetLang.nativeName);
+      appState.selectLanguages(native, target);
+    }
+
+    // Close the sheet and go back to home
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Switched to ${course.targetLanguageName}'),
+        backgroundColor: AppColors.primaryTeal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

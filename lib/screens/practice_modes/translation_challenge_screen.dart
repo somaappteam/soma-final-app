@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
 import '../../services/tts_service.dart';
+import '../../theme/app_theme.dart';
 
 /// Translation Challenge Mode
 /// Race against the clock to translate words and phrases
@@ -161,12 +162,12 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
             height: 150,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
               ),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF667eea).withOpacity(0.5),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.5),
                   blurRadius: 30,
                   spreadRadius: 10,
                 ),
@@ -208,7 +209,7 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF667eea),
+              backgroundColor: AppColors.primaryPurple,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
               shape: RoundedRectangleBorder(
@@ -234,13 +235,13 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF667eea).withOpacity(0.2),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Level $_currentLevel',
                   style: const TextStyle(
-                    color: Color(0xFF667eea),
+                    color: AppColors.primaryPurple,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -250,7 +251,7 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
                 children: List.generate(5, (index) {
                   return Icon(
                     index < _lives ? Icons.favorite : Icons.favorite_border,
-                    color: index < _lives ? Colors.red : Colors.grey,
+                    color: index < _lives ? AppColors.error : AppColors.neutralMid,
                     size: 24,
                   );
                 }),
@@ -259,13 +260,13 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
+                  color: AppColors.accentOrange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '$_score',
                   style: const TextStyle(
-                    color: Colors.amber,
+                    color: AppColors.accentOrange,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -279,8 +280,8 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: LinearProgressIndicator(
             value: (_currentLevel % 5) / 5,
-            backgroundColor: Colors.grey.shade800,
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF667eea)),
+            backgroundColor: AppColors.neutralDark,
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
             minHeight: 8,
             borderRadius: BorderRadius.circular(4),
           ),
@@ -296,17 +297,17 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
             gradient: LinearGradient(
               colors: _showResult
                   ? (_isCorrect
-                      ? [Colors.green.shade400, Colors.green.shade600]
-                      : [Colors.red.shade400, Colors.red.shade600])
-                  : [const Color(0xFF667eea), const Color(0xFF764ba2)],
+                      ? [AppColors.success, AppColors.success]
+                      : [AppColors.error, AppColors.error])
+                  : [AppColors.primaryPurple, AppColors.secondaryPurple],
             ),
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
                 color: (_showResult
-                        ? (_isCorrect ? Colors.green : Colors.red)
-                        : const Color(0xFF667eea))
-                    .withOpacity(0.4),
+                        ? (_isCorrect ? AppColors.success : AppColors.error)
+                        : AppColors.primaryPurple)
+                    .withValues(alpha: 0.4),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),
@@ -381,9 +382,9 @@ class _TranslationChallengeScreenState extends State<TranslationChallengeScreen>
               
               if (_showResult) {
                 if (option == _correctAnswer) {
-                  buttonColor = Colors.green;
+                  buttonColor = AppColors.success;
                 } else if (option != _correctAnswer) {
-                  buttonColor = Colors.red.withOpacity(0.3);
+                  buttonColor = AppColors.error.withValues(alpha: 0.3);
                 }
               }
 

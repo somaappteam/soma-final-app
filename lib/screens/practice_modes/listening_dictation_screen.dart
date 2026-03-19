@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
+import '../../models/sentence_item.dart';
+import '../../services/tts_service.dart';
 import 'dart:async';
+import '../../services/audio_service.dart';
+import '../../widgets/practice_results_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Listening Dictation Mode
 /// Listen and type what you hear
 class ListeningDictationScreen extends StatefulWidget {
-  const ListeningDictationScreen({super.key});
+  final List<SentenceItem> sentences;
+  final String targetLanguage;
+  final String nativeLanguage;
+
+  const ListeningDictationScreen({
+    super.key,
+    required this.sentences,
+    required this.targetLanguage,
+    required this.nativeLanguage,
+  });
 
   @override
   State<ListeningDictationScreen> createState() => _ListeningDictationScreenState();
@@ -18,54 +32,66 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
   int _score = 0;
   int _currentIndex = 0;
   int _attempts = 0;
-  
-  final List<Map<String, dynamic>> _dictations = [
-    {
-      'text': 'Hola, ¿cómo estás?',
-      'translation': 'Hello, how are you?',
-      'difficulty': 1,
-      'slowVersion': true,
-    },
-    {
-      'text': 'Me llamo María y soy de España.',
-      'translation': 'My name is Maria and I am from Spain.',
-      'difficulty': 2,
-      'slowVersion': true,
-    },
-    {
-      'text': 'El clima está muy bonito hoy.',
-      'translation': 'The weather is very nice today.',
-      'difficulty': 2,
-      'slowVersion': true,
-    },
-    {
-      'text': 'Me gustaría pedir un café, por favor.',
-      'translation': 'I would like to order a coffee, please.',
-      'difficulty': 3,
-      'slowVersion': true,
-    },
-    {
-      'text': '¿Dónde está la estación de tren?',
-      'translation': 'Where is the train station?',
-      'difficulty': 3,
-      'slowVersion': true,
-    },
-  ];
+  double _playbackSpeed = 1.0;
+  int _totalXP = 0;
+  int _streak = 0;
+  int _maxStreak = 0;
+  bool _isComplete = false;
+  Duration _timeElapsed = Duration.zero;
+  Timer? _timer;
+  final List<SentenceItem> _mistakes = [];
+  List<SentenceItem> _quizSentences = [];
 
-  void _togglePlay() {
-    setState(() => _isPlaying = !_isPlaying);
-    
-    if (_isPlaying) {
-      // Simulate audio playback duration
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _isPlaying = false);
+  @override
+  void initState() {
+    super.initState();
+    _quizSentences = List.from(widget.sentences);
+    if (_quizSentences.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startTimer();
       });
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && !_isComplete) {
+        setState(() {
+          _timeElapsed = Duration(seconds: _timeElapsed.inSeconds + 1);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _togglePlay() async {
+    if (_quizSentences.isEmpty) return;
+    
+    setState(() => _isPlaying = true);
+    
+    final currentSentence = _quizSentences[_currentIndex];
+    await TtsService().speak(
+      currentSentence.text,
+      languageCode: widget.targetLanguage,
+      rate: _playbackSpeed,
+      context: context,
+    );
+    
+    if (mounted) {
+      setState(() => _isPlaying = false);
     }
   }
 
   void _checkAnswer() {
     final userAnswer = _controller.text.trim().toLowerCase();
-    final correctAnswer = _dictations[_currentIndex]['text'].toString().toLowerCase();
+    final correctAnswer = _quizSentences[_currentIndex].text.toLowerCase();
     
     setState(() {
       _isCorrect = userAnswer == correctAnswer;
@@ -75,23 +101,117 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
       if (_isCorrect) {
         int points = 100 - (_attempts - 1) * 20;
         if (points < 20) points = 20;
-        _score += points;
+        _score += 1;
+        _totalXP += points;
+        AudioService().playCorrect();
+        
+        if (_attempts == 1) {
+          _streak++;
+          if (_streak > _maxStreak) _maxStreak = _streak;
+        } else {
+          _streak = 0;
+        }
+      } else {
+        _streak = 0;
+        final currentSentence = _quizSentences[_currentIndex];
+        if (!_mistakes.contains(currentSentence)) {
+          _mistakes.add(currentSentence);
+          AudioService().playWrong();
+        }
       }
     });
   }
 
   void _nextQuestion() {
+    if (_currentIndex < _quizSentences.length - 1) {
+      setState(() {
+        _controller.clear();
+        _showAnswer = false;
+        _attempts = 0;
+        _currentIndex++;
+      });
+    } else {
+      _timer?.cancel();
+      setState(() {
+        _isComplete = true;
+      });
+    }
+  }
+
+  void _replayMistakes() {
     setState(() {
+      _quizSentences = List.from(_mistakes);
+      _mistakes.clear();
+      _currentIndex = 0;
+      _score = 0;
+      _totalXP = 0;
+      _streak = 0;
+      _maxStreak = 0;
+      _attempts = 0;
+      _isComplete = false;
+      _timeElapsed = Duration.zero;
       _controller.clear();
       _showAnswer = false;
-      _attempts = 0;
-      _currentIndex = (_currentIndex + 1) % _dictations.length;
     });
+    _startTimer();
+  }
+
+  void _restartQuiz() {
+    setState(() {
+      _quizSentences = List.from(widget.sentences);
+      _mistakes.clear();
+      _currentIndex = 0;
+      _score = 0;
+      _totalXP = 0;
+      _streak = 0;
+      _maxStreak = 0;
+      _attempts = 0;
+      _isComplete = false;
+      _timeElapsed = Duration.zero;
+      _controller.clear();
+      _showAnswer = false;
+    });
+    _startTimer();
+  }
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final length = _quizSentences.length;
+    final accuracy = (length > 0 ? _score / length : 0.0).clamp(0.0, 1.0);
+    return {
+      'correct': _score,
+      'total': length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentDictation = _dictations[_currentIndex];
+    if (_quizSentences.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Listening Dictation')),
+        body: const Center(child: Text('No sentence data available')),
+      );
+    }
+
+    if (_isComplete) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: PracticeResultsScreen(
+          correctCount: _score,
+          totalCount: _quizSentences.length,
+          xpEarned: _totalXP,
+          timeElapsed: _timeElapsed,
+          bestStreak: _maxStreak,
+          hasMistakes: _mistakes.isNotEmpty,
+          onReplayMistakes: _replayMistakes,
+          onContinueToNext: () => Navigator.pop(context, _buildPracticeResult()),
+          onBackToHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        ),
+      );
+    }
+
+    final currentDictation = _quizSentences[_currentIndex];
     
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -123,17 +243,17 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
-                  value: (_currentIndex + 1) / _dictations.length,
+                  value: (_currentIndex + 1) / _quizSentences.length,
                   backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF667eea)),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
                   minHeight: 8,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Question ${_currentIndex + 1} of ${_dictations.length}',
+                'Question ${_currentIndex + 1} of ${_quizSentences.length}',
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 14,
                 ),
               ),
@@ -146,12 +266,12 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                    colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
                   ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667eea).withOpacity(0.4),
+                      color: AppColors.primaryPurple.withValues(alpha: 0.4),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -166,10 +286,10 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha: 0.3),
                             width: 3,
                           ),
                         ),
@@ -183,8 +303,8 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                     const SizedBox(height: 24),
                     Text(
                       _isPlaying ? 'Playing...' : 'Tap to listen',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 18,
                       ),
                     ),
@@ -203,7 +323,7 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                               width: 4,
                               height: 10 + (index % 5) * 6.0,
                               decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                color: Colors.white.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             );
@@ -216,11 +336,11 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildSpeedButton('0.5x', false),
+                        _buildSpeedButton('0.5x', _playbackSpeed == 0.5, 0.5),
                         const SizedBox(width: 12),
-                        _buildSpeedButton('1.0x', true),
+                        _buildSpeedButton('1.0x', _playbackSpeed == 1.0, 1.0),
                         const SizedBox(width: 12),
-                        _buildSpeedButton('0.75x', false),
+                        _buildSpeedButton('0.75x', _playbackSpeed == 0.75, 0.75),
                       ],
                     ),
                   ],
@@ -236,7 +356,7 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                     ),
                   ),
                   child: TextField(
@@ -248,12 +368,12 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                     decoration: InputDecoration(
                       hintText: 'Type what you hear...',
                       hintStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(20),
                       suffixIcon: IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.white54),
+                        icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
                         onPressed: () => _controller.clear(),
                       ),
                     ),
@@ -264,11 +384,11 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: _isCorrect 
-                        ? Colors.green.withOpacity(0.2) 
-                        : Colors.red.withOpacity(0.2),
+                        ? AppColors.success.withValues(alpha: 0.2) 
+                        : AppColors.error.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _isCorrect ? Colors.green : Colors.red,
+                      color: _isCorrect ? AppColors.success : AppColors.error,
                     ),
                   ),
                   child: Column(
@@ -277,7 +397,7 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                         children: [
                           Icon(
                             _isCorrect ? Icons.check_circle : Icons.error,
-                            color: _isCorrect ? Colors.green : Colors.red,
+                            color: _isCorrect ? AppColors.success : AppColors.error,
                             size: 32,
                           ),
                           const SizedBox(width: 12),
@@ -288,16 +408,16 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                                 Text(
                                   _isCorrect ? 'Correct!' : 'Not quite...',
                                   style: TextStyle(
-                                    color: _isCorrect ? Colors.green : Colors.red,
+                                    color: _isCorrect ? AppColors.success : AppColors.error,
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 if (!_isCorrect)
                                   Text(
-                                    currentDictation['text'],
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    currentDictation.text,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurface,
                                       fontSize: 18,
                                     ),
                                   ),
@@ -308,9 +428,9 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Translation: ${currentDictation['translation']}',
+                        'Translation: ${currentDictation.translation}',
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           fontSize: 14,
                         ),
                       ),
@@ -335,7 +455,7 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667eea),
+                    backgroundColor: AppColors.primaryPurple,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -350,21 +470,24 @@ class _ListeningDictationScreenState extends State<ListeningDictationScreen> {
     );
   }
 
-  Widget _buildSpeedButton(String label, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+  Widget _buildSpeedButton(String label, bool isActive, double speed) {
+    return GestureDetector(
+      onTap: () => setState(() => _playbackSpeed = speed),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.3),
+          ),
         ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isActive ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );

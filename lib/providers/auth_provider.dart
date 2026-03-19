@@ -5,6 +5,7 @@ import '../models/premium_model.dart';
 import '../services/supabase_service.dart';
 import '../services/user_service.dart';
 import '../services/premium_service.dart';
+import '../services/course_service.dart';
 import '../utils/guest_user.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -36,11 +37,15 @@ class AuthProvider extends ChangeNotifier {
   void _init() {
     _supabase.authStateChanges.listen((event) async {
       if (event.event == AuthChangeEvent.signedIn) {
+        // Before loading cloud data, check if guest data should be synced
+        await _syncGuestProgressIfNeeded();
         await _loadUserData();
       } else if (event.event == AuthChangeEvent.signedOut) {
         _currentUser = null;
         _isPremium = false;
         _subscription = null;
+        _isGuest = false;
+        _guestUser = null;
         notifyListeners();
       }
     });
@@ -49,6 +54,30 @@ class AuthProvider extends ChangeNotifier {
       _loadUserData();
     } else {
       _checkGuestMode();
+    }
+  }
+
+  /// Called when a guest signs into a real account — migrates their local
+  /// courses and XP to Supabase, then clears guest storage.
+  Future<void> _syncGuestProgressIfNeeded() async {
+    try {
+      final guest = await GuestUser.load();
+      if (guest == null) return; // nothing to sync
+
+      final courseService = CourseService();
+
+      // Migrate every language course the guest was studying
+      await courseService.migrateGuestCourses(guest);
+
+      // Sync XP from guest to Supabase user
+      if (guest.totalXP > 0) {
+        await _userService.addXP(guest.totalXP);
+      }
+
+      // Clear guest data so it doesn't linger
+      await GuestUser.clear();
+    } catch (e) {
+      debugPrint('Guest sync error (non-fatal): $e');
     }
   }
 
@@ -78,6 +107,19 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Refreshes the subscription status from Supabase.
+  /// Call this after the user completes a purchase or restores purchases.
+  Future<void> refreshSubscriptionStatus() async {
+    if (!_supabase.isAuthenticated) return;
+    try {
+      _isPremium = await _premiumService.isPremium();
+      _subscription = await _premiumService.getCurrentSubscription();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Subscription refresh error: $e');
     }
   }
 
@@ -166,10 +208,10 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       final guest = GuestUser.create();
+      _guestUser = guest;
       await guest.save();
       
       _isGuest = true;
-      _guestUser = guest;
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -270,12 +312,15 @@ class AuthProvider extends ChangeNotifier {
   Future<void> updateLanguages({
     required String nativeLanguage,
     required List<String> learningLanguages,
+    String? activeLanguage,
   }) async {
     try {
-      if (_isGuest && _guestUser != null) {
+      if (_isGuest) {
+        _guestUser ??= GuestUser.create();
         _guestUser = _guestUser!.copyWith(
           nativeLanguage: nativeLanguage,
           learningLanguages: learningLanguages,
+          activeLanguage: activeLanguage ?? (learningLanguages.isNotEmpty ? learningLanguages.first : null),
         );
         await _guestUser!.save();
       } else {
@@ -299,7 +344,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> addXP(int points) async {
     try {
-      if (_isGuest && _guestUser != null) {
+      if (_isGuest) {
+        _guestUser ??= GuestUser.create();
         _guestUser = _guestUser!.copyWith(
           totalXP: _guestUser!.totalXP + points,
         );
@@ -317,6 +363,16 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshGuestUser() async {
+    if (_isGuest) {
+      final guest = await GuestUser.load();
+      if (guest != null) {
+        _guestUser = guest;
+        notifyListeners();
+      }
     }
   }
 

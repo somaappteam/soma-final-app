@@ -15,6 +15,10 @@ class GamificationService {
   // Get or generate today's quests for a user
   Future<DailyQuestsData?> getDailyQuests(String userId) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return _getDemoDailyQuests(userId);
+      }
+
       final today = DateTime.now();
       final todayString = today.toIso8601String().split('T')[0];
 
@@ -58,6 +62,8 @@ class GamificationService {
     String? specificQuestId,
   }) async {
     try {
+      if (_supabase.currentUserId == null) return;
+
       final today = DateTime.now().toIso8601String().split('T')[0];
 
       // Get today's quests
@@ -104,6 +110,8 @@ class GamificationService {
   // Claim quest rewards
   Future<Map<String, int>?> claimQuestRewards(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return null;
+
       final today = DateTime.now().toIso8601String().split('T')[0];
 
       final response = await _supabase.client
@@ -157,6 +165,8 @@ class GamificationService {
   // Get all achievements for a user
   Future<List<Achievement>> getUserAchievements(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return [];
+
       final response = await _supabase.client
           .from('achievements')
           .select('*, achievement_definitions(*)')
@@ -175,6 +185,8 @@ class GamificationService {
   // Get achievement definitions
   Future<List<AchievementDefinition>> getAchievementDefinitions() async {
     try {
+      if (_supabase.currentUserId == null) return [];
+
       final response = await _supabase.client
           .from('achievement_definitions')
           .select()
@@ -192,6 +204,8 @@ class GamificationService {
   // Check and unlock achievements
   Future<List<Achievement>> checkAndUnlockAchievements(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return [];
+
       final unlockedAchievements = <Achievement>[];
 
       // Get user's stats
@@ -287,7 +301,7 @@ class GamificationService {
           .eq('user_id', userId)
           .eq('is_learned', true);
 
-      return response.length ?? 0;
+      return response.length;
     } catch (e) {
       return 0;
     }
@@ -301,7 +315,7 @@ class GamificationService {
           .eq('user_id', userId)
           .eq('is_completed', true);
 
-      return response.length ?? 0;
+      return response.length;
     } catch (e) {
       return 0;
     }
@@ -322,7 +336,6 @@ class GamificationService {
           .single();
 
       return Achievement.fromJson(response);
-          return null;
     } catch (e) {
       _logger.e('Failed to unlock achievement', error: e);
       return null;
@@ -332,6 +345,8 @@ class GamificationService {
   // Mark achievement as viewed
   Future<void> markAchievementAsViewed(String achievementId) async {
     try {
+      if (_supabase.currentUserId == null) return;
+
       await _supabase.client
           .from('achievements')
           .update({
@@ -349,15 +364,28 @@ class GamificationService {
   // Get user's streak data
   Future<StreakData?> getStreakData(String userId) async {
     try {
+      if (_supabase.currentUserId == null) {
+        return StreakData(
+          id: 'local_streak',
+          userId: userId,
+          currentStreak: 0,
+          lastStreakDate: DateTime.now().subtract(const Duration(days: 1)),
+          streakFreezeCount: 0,
+          freezeUsedDates: [],
+          isWeekendProtectionEnabled: false,
+        );
+      }
+
       final response = await _supabase.client
           .from('user_streaks')
           .select()
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
 
-      return StreakData.fromJson(response);
+      if (response != null) {
+        return StreakData.fromJson(response);
+      }
     
-      // Create new streak record if doesn't exist
       final newStreak = StreakData(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: userId,
@@ -374,6 +402,8 @@ class GamificationService {
   // Update streak (called when user completes an activity)
   Future<void> updateStreak(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return;
+
       await _supabase.client.rpc('update_user_streak', params: {
         'p_user_id': userId,
       });
@@ -385,6 +415,8 @@ class GamificationService {
   // Use streak freeze
   Future<bool> useStreakFreeze(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return false;
+
       final streakData = await getStreakData(userId);
       if (streakData == null) return false;
 
@@ -414,6 +446,8 @@ class GamificationService {
   // Purchase streak freezes (with gems)
   Future<bool> purchaseStreakFreeze(String userId, int count, int gemCost) async {
     try {
+      if (_supabase.currentUserId == null) return false;
+
       // Check if user has enough gems
       final userResponse = await _supabase.client
           .from('profiles')
@@ -451,6 +485,8 @@ class GamificationService {
   // Create streak recovery challenge
   Future<StreakRecoveryChallenge?> createRecoveryChallenge(String userId) async {
     try {
+      if (_supabase.currentUserId == null) return null;
+
       final challengeTypes = [
         {
           'type': 'perfect_lesson',
@@ -483,7 +519,6 @@ class GamificationService {
           .single();
 
       return StreakRecoveryChallenge.fromJson(response);
-          return null;
     } catch (e) {
       _logger.e('Failed to create recovery challenge', error: e);
       return null;
@@ -493,6 +528,8 @@ class GamificationService {
   // Complete recovery challenge
   Future<bool> completeRecoveryChallenge(String challengeId) async {
     try {
+      if (_supabase.currentUserId == null) return false;
+
       final response = await _supabase.client
           .from('streak_recovery_challenges')
           .update({
@@ -522,6 +559,8 @@ class GamificationService {
   // Toggle weekend protection
   Future<void> toggleWeekendProtection(String userId, bool enabled) async {
     try {
+      if (_supabase.currentUserId == null) return;
+
       await _supabase.client
           .from('user_streaks')
           .update({
@@ -580,5 +619,46 @@ class GamificationService {
       'xp_needed': xpNeeded,
       'total_xp': totalXP,
     };
+  }
+
+  // --- Offline Demo Fallbacks ---
+  DailyQuestsData _getDemoDailyQuests(String userId) {
+    return DailyQuestsData(
+      id: 'demo_quests_${DateTime.now().millisecondsSinceEpoch}',
+      userId: userId,
+      questDate: DateTime.now(),
+      quests: [
+        DailyQuest(
+          id: 'q1',
+          definitionId: 'complete_practice',
+          title: 'Complete 3 Practice Sessions',
+          description: 'Practice makes perfect.',
+          type: 'practice',
+          requirement: 3,
+          rewardXP: 10,
+          rewardGems: 2,
+          progress: 0,
+          completed: false,
+          difficulty: 'easy',
+        ),
+        DailyQuest(
+          id: 'q2',
+          definitionId: 'earn_xp',
+          title: 'Earn 50 XP',
+          description: 'XP gained from any activity.',
+          type: 'xp',
+          requirement: 50,
+          rewardXP: 15,
+          rewardGems: 3,
+          progress: 0,
+          completed: false,
+          difficulty: 'medium',
+        ),
+      ],
+      completedQuests: [],
+      claimedRewards: false,
+      totalXPEarned: 0,
+      totalGemsEarned: 0,
+    );
   }
 }

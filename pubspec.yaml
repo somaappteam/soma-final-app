@@ -18,7 +18,7 @@ dependencies:
   shimmer: ^3.0.0
   smooth_page_indicator: ^1.1.0
   percent_indicator: ^4.2.3
-  lottie: ^3.0.0
+  lottie: ^3.3.2
   liquid_progress_indicator: ^0.4.0
   flutter_slidable: ^3.0.0
   animated_text_kit: ^4.2.2
@@ -26,7 +26,7 @@ dependencies:
   
   # State Management
   provider: ^6.1.0
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^2.6.1
   
   # Supabase Backend
   supabase_flutter: ^2.5.0
@@ -46,7 +46,7 @@ dependencies:
   # Storage & Cache
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  cached_network_image: ^3.3.1
+  cached_network_image: ^3.4.1
   path_provider: ^2.1.5
   shared_preferences: ^2.2.3
   
@@ -130,15 +130,23 @@ dependencies:
   onnxruntime: ^1.4.1
   just_audio: ^0.10.5
   csv: ^7.2.0
+  riverpod_annotation: ^2.6.1
+  sentry_flutter: ^9.15.0
+  workmanager: ^0.9.0+3
+  audioplayers: ^6.6.0
+  flutter_cache_manager: ^3.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.11
+  build_runner: ^2.4.13
   json_serializable: ^6.8.0
   hive_generator: ^2.0.1
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
+  riverpod_generator: ^2.4.0
+
+
 
   supabase: any
 flutter:
@@ -153,12 +161,8 @@ flutter:
     - .env
 
 flutter_launcher_icons:
-  android: true
+  android: "launcher_icon"
   ios: true
-  image_path: "assets/icons/soma_logo.png"
-  adaptive_icon_background: "#6B4EFF"
-  adaptive_icon_foreground: "assets/icons/soma_logo_foreground.png"
+  image_path: "assets/icons/soma logo.jpeg"
   min_sdk_android: 21
   remove_alpha_ios: true
-
-

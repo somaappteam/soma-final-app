@@ -151,6 +151,7 @@ class TtsService {
     required String languageCode,
     BuildContext? context,
     String? languageName,
+    double? rate,
   }) async {
     if (!_isInitialized) await _initTts();
     if (text.trim().isEmpty) return;
@@ -161,6 +162,11 @@ class TtsService {
 
       if (available) {
         await _flutterTts.setLanguage(deviceLocale);
+        if (rate != null) {
+          await _flutterTts.setSpeechRate(rate * 0.5); // Normalized for flutter_tts
+        } else {
+          await _flutterTts.setSpeechRate(0.5);
+        }
         await _flutterTts.speak(text);
         return;
       }

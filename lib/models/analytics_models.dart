@@ -1,4 +1,5 @@
 import 'dart:ui';
+import '../theme/app_theme.dart';
 
 /// Progress Analytics Dashboard Models
 class UserAnalytics {
@@ -535,17 +536,17 @@ class HeatmapDay {
   Color getColor() {
     switch (activityLevel) {
       case 0:
-        return const Color(0xFFE0E0E0);
+        return AppColors.neutralLight;
       case 1:
-        return const Color(0xFF9BE9A8);
+        return AppColors.chartLevel1;
       case 2:
-        return const Color(0xFF40C463);
+        return AppColors.chartLevel2;
       case 3:
-        return const Color(0xFF30A14E);
+        return AppColors.chartLevel3;
       case 4:
-        return const Color(0xFF216E39);
+        return AppColors.chartLevel4;
       default:
-        return const Color(0xFFE0E0E0);
+        return AppColors.neutralLight;
     }
   }
 }

@@ -49,7 +49,7 @@ Future<void> runMigration(
 
   print('Processing $path...');
   final csvData = await file.readAsString();
-  final List<List<dynamic>> rows = const CsvToListConverter().convert(csvData);
+  final List<List<dynamic>> rows = CsvToListConverter().convert(csvData);
 
   print('Inserting ${rows.length} rows into $table...');
   const int batchSize = 1000;

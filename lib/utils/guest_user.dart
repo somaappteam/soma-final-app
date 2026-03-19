@@ -15,6 +15,7 @@ class GuestUser {
   int totalGamesPlayed;
   int totalGamesWon;
   String? country;
+  String? activeLanguage;
   DateTime createdAt;
   DateTime lastActiveAt;
 
@@ -32,6 +33,7 @@ class GuestUser {
     this.totalGamesPlayed = 0,
     this.totalGamesWon = 0,
     this.country,
+    this.activeLanguage,
     required this.createdAt,
     required this.lastActiveAt,
   });
@@ -62,6 +64,7 @@ class GuestUser {
       'total_games_played': totalGamesPlayed,
       'total_games_won': totalGamesWon,
       'country': country,
+      'active_language': activeLanguage,
       'created_at': createdAt.toIso8601String(),
       'last_active_at': lastActiveAt.toIso8601String(),
     };
@@ -82,6 +85,7 @@ class GuestUser {
       totalGamesPlayed: json['total_games_played'] ?? 0,
       totalGamesWon: json['total_games_won'] ?? 0,
       country: json['country'],
+      activeLanguage: json['active_language'],
       createdAt: DateTime.parse(json['created_at']),
       lastActiveAt: DateTime.parse(json['last_active_at']),
     );
@@ -128,6 +132,7 @@ class GuestUser {
     int? totalGamesPlayed,
     int? totalGamesWon,
     String? country,
+    String? activeLanguage,
     DateTime? lastActiveAt,
   }) {
     return GuestUser(
@@ -144,6 +149,7 @@ class GuestUser {
       totalGamesPlayed: totalGamesPlayed ?? this.totalGamesPlayed,
       totalGamesWon: totalGamesWon ?? this.totalGamesWon,
       country: country ?? this.country,
+      activeLanguage: activeLanguage ?? this.activeLanguage,
       createdAt: createdAt,
       lastActiveAt: lastActiveAt ?? DateTime.now(),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// Represents a story for reading practice
 class Story {
@@ -39,13 +40,13 @@ class Story {
   Color get difficultyColor {
     switch (difficulty.toLowerCase()) {
       case 'beginner':
-        return Colors.green;
+        return AppColors.success;
       case 'intermediate':
-        return Colors.orange;
+        return AppColors.accentCoral;
       case 'advanced':
-        return Colors.red;
+        return AppColors.error;
       default:
-        return Colors.blue;
+        return AppColors.primaryTeal;
     }
   }
 

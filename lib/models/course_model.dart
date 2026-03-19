@@ -35,21 +35,21 @@ class CourseModel {
 
   factory CourseModel.fromJson(Map<String, dynamic> json) {
     return CourseModel(
-      id: json['id'],
-      courseId: json['course_id'] ?? '',
-      userId: json['user_id'],
-      nativeLanguage: json['native_language'],
-      nativeLanguageName: json['native_language_name'],
-      nativeLanguageFlag: json['native_language_flag'],
-      targetLanguage: json['target_language'],
-      targetLanguageName: json['target_language_name'],
-      targetLanguageFlag: json['target_language_flag'],
+      id: json['id']?.toString() ?? '',
+      courseId: json['course_id']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      nativeLanguage: json['native_language']?.toString() ?? '',
+      nativeLanguageName: json['native_language_name']?.toString() ?? '',
+      nativeLanguageFlag: json['native_language_flag']?.toString() ?? '',
+      targetLanguage: json['target_language']?.toString() ?? '',
+      targetLanguageName: json['target_language_name']?.toString() ?? '',
+      targetLanguageFlag: json['target_language_flag']?.toString() ?? '',
       currentLevel: json['current_level'] ?? 1,
       totalXP: json['total_xp'] ?? 0,
       progress: (json['progress'] ?? 0.0).toDouble(),
       isActive: json['is_active'] ?? true,
-      createdAt: DateTime.parse(json['created_at']),
-      lastAccessedAt: DateTime.parse(json['last_accessed_at']),
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
+      lastAccessedAt: json['last_accessed_at'] != null ? DateTime.parse(json['last_accessed_at']) : DateTime.now(),
     );
   }
 

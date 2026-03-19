@@ -1,19 +1,26 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Environment {
   // Production Supabase credentials (embedded for security)
-  static const String _supabaseUrl = 'https://imyjjyhrqhgyvgpiccbv.supabase.co';
+  static const String _supabaseUrl = '';
   static const String _supabaseAnonKey = '';
 
-  static String get supabaseUrl =>
-      const String.fromEnvironment('SUPABASE_URL', defaultValue: '') != ''
-          ? const String.fromEnvironment('SUPABASE_URL')
-          : dotenv.env['SUPABASE_URL'] ?? _supabaseUrl;
+  static String get supabaseUrl {
+    const fromEnv = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+    if (fromEnv.isNotEmpty) return fromEnv;
+    final fromDotEnv = dotenv.env['SUPABASE_URL'];
+    if (fromDotEnv != null && fromDotEnv.isNotEmpty) return fromDotEnv;
+    return _supabaseUrl;
+  }
 
-  static String get supabaseAnonKey =>
-      const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '') != ''
-          ? const String.fromEnvironment('SUPABASE_ANON_KEY')
-          : dotenv.env['SUPABASE_ANON_KEY'] ?? _supabaseAnonKey;
+  static String get supabaseAnonKey {
+    const fromEnv = String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+    if (fromEnv.isNotEmpty) return fromEnv;
+    final fromDotEnv = dotenv.env['SUPABASE_ANON_KEY'];
+    if (fromDotEnv != null && fromDotEnv.isNotEmpty) return fromDotEnv;
+    return _supabaseAnonKey;
+  }
 
   static String get revenueCatApiKey =>
       const String.fromEnvironment('REVENUECAT_API_KEY', defaultValue: '') != ''
@@ -32,7 +39,7 @@ class Environment {
     try {
       await dotenv.load(fileName: ".env");
     } catch (e) {
-      print('ℹ️  Using embedded Supabase credentials');
+      debugPrint('ℹ️  Using embedded Supabase credentials');
     }
   }
 }

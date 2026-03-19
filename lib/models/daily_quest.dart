@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class DailyQuest {
   final String id;
@@ -92,13 +93,13 @@ class DailyQuest {
   Color get difficultyColor {
     switch (difficulty) {
       case 'easy':
-        return Colors.green;
+        return AppColors.success;
       case 'medium':
-        return Colors.orange;
+        return AppColors.accentCoral;
       case 'hard':
-        return Colors.red;
+        return AppColors.error;
       default:
-        return Colors.blue;
+        return AppColors.primaryTeal;
     }
   }
 }
@@ -231,15 +232,15 @@ class Achievement {
   Color get tierColor {
     switch (tier) {
       case 'bronze':
-        return const Color(0xFFCD7F32);
+        return AppColors.bronze;
       case 'silver':
-        return const Color(0xFFC0C0C0);
+        return AppColors.silver;
       case 'gold':
-        return const Color(0xFFFFD700);
+        return AppColors.gold;
       case 'platinum':
-        return const Color(0xFFE5E4E2);
+        return AppColors.platinum;
       default:
-        return Colors.grey;
+        return AppColors.neutralMid;
     }
   }
 

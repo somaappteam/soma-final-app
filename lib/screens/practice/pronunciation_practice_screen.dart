@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
 
 /// Premium Pronunciation Practice - Voice Recognition Training
 /// Users practice speaking with visual feedback and scoring
@@ -13,12 +14,14 @@ class PronunciationPracticeScreen extends StatefulWidget {
   final List<VocabularyItem> vocabulary;
   final String targetLanguage;
   final String nativeLanguage;
+  final String courseId;
 
   const PronunciationPracticeScreen({
     super.key,
     required this.vocabulary,
     required this.targetLanguage,
     required this.nativeLanguage,
+    this.courseId = 'demo',
   });
 
   @override
@@ -39,6 +42,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
   int _streak = 0;
   int _maxStreak = 0;
   int _comboMultiplier = 1;
+  final Map<String, bool> _wordPerformance = {};
   bool _isComplete = false;
   bool _showingPhonetics = false;
   
@@ -58,18 +62,12 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
   @override
   void initState() {
     super.initState();
-    _prepareVocabulary();
+    _loadWordsAndStart();
     _waveController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
     _generateWaveHeights();
-    
-    if (_practiceVocabulary.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _playWord();
-      });
-    }
   }
 
   @override
@@ -90,6 +88,19 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
     _waveHeights = List.generate(30, (index) {
       return 0.2 + (Random().nextDouble() * 0.6);
     });
+  }
+
+  void _loadWordsAndStart() {
+    _practiceVocabulary = List.from(widget.vocabulary)..shuffle();
+    if (_practiceVocabulary.length > 15) {
+      _practiceVocabulary = _practiceVocabulary.sublist(0, 15);
+    }
+    if (mounted) {
+      setState(() {});
+      if (_practiceVocabulary.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _playWord());
+      }
+    }
   }
 
   void _prepareVocabulary() {
@@ -157,6 +168,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
       _stars += result + 1;
       
       if (result >= 1) {
+        AudioService().playCorrect();
         _correctCount++;
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
@@ -169,11 +181,20 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
         _score += baseXP;
         _totalXP += earnedXP;
       } else {
+        AudioService().playWrong();
         _streak = 0;
         _comboMultiplier = 1;
         HapticFeedback.heavyImpact();
       }
     });
+
+    // Record word performance for centralized SRS
+    if (_currentIndex < _practiceVocabulary.length) {
+      final currentWord = _practiceVocabulary[_currentIndex];
+      // Considered correct if result is 1 or 2
+      final bool isCorrect = result >= 1;
+      _wordPerformance[currentWord.id] = isCorrect;
+    }
 
     // Auto advance after showing result
     Future.delayed(const Duration(seconds: 2), () {
@@ -288,7 +309,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
@@ -312,9 +333,9 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                     const SizedBox(height: 4),
                     Text(
                       'Word ${_currentIndex + 1} of ${_practiceVocabulary.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textMedium,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -324,12 +345,12 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.amber, Colors.orange],
+                    colors: [AppColors.accentOrange, AppColors.accentCoral],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.amber.withValues(alpha: 0.3),
+                      color: AppColors.accentOrange.withValues(alpha: 0.3),
                       blurRadius: 8,
                     ),
                   ],
@@ -357,7 +378,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentCoral),
               minHeight: 8,
             ),
@@ -369,7 +390,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.orange, Colors.red],
+                    colors: [AppColors.accentCoral, AppColors.error],
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -508,7 +529,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 decoration: BoxDecoration(
                   color: _isRecording
                       ? AppColors.accentCoral.withValues(alpha: 0.8)
-                      : Colors.grey.shade300,
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -529,7 +550,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           shape: BoxShape.circle,
           gradient: _isRecording
               ? const LinearGradient(
-                  colors: [Colors.red, Colors.redAccent],
+                  colors: [AppColors.error, Colors.redAccent],
                 )
               : const LinearGradient(
                   colors: [
@@ -539,7 +560,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 ),
           boxShadow: [
             BoxShadow(
-              color: (_isRecording ? Colors.red : AppColors.accentCoral)
+              color: (_isRecording ? AppColors.error : AppColors.accentCoral)
                   .withValues(alpha: 0.5),
               blurRadius: 30,
               spreadRadius: 5,
@@ -579,9 +600,9 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
   Widget _buildResultOverlay() {
     final result = _lastResult ?? 0;
     final colors = [
-      Colors.red.shade400,      // 0 stars
-      Colors.orange.shade400,   // 1 star  
-      Colors.green.shade400,    // 2 stars
+      AppColors.error,      // 0 stars
+      AppColors.accentCoral,   // 1 star  
+      AppColors.success,    // 2 stars
     ];
     final messages = [
       'Keep Practicing!',
@@ -642,7 +663,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Icon(
                   index <= result ? Icons.star : Icons.star_border,
-                  color: index <= result ? Colors.amber : Colors.grey.shade300,
+                  color: index <= result ? AppColors.accentOrange : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                   size: 36,
                 ),
               );
@@ -654,7 +675,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Colors.amber, Colors.orange],
+                  colors: [AppColors.accentOrange, AppColors.accentCoral],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -682,7 +703,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).cardTheme.color ?? Colors.white,
           foregroundColor: AppColors.accentCoral,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
@@ -707,7 +728,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           end: Alignment.bottomCenter,
           colors: isPronunciationPro
               ? [AppColors.accentCoral.withValues(alpha: 0.2), Colors.white]
-              : [Colors.grey.shade100, Colors.white],
+              : [AppColors.neutralLight, Colors.white],
         ),
       ),
       child: SafeArea(
@@ -744,7 +765,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                   colors: [
                     isPronunciationPro
                         ? AppColors.accentCoral.withValues(alpha: 0.3)
-                        : Colors.grey.withValues(alpha: 0.2),
+                        : AppColors.neutralMid.withValues(alpha: 0.2),
                     Colors.transparent,
                   ],
                 ),
@@ -764,12 +785,12 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                         ],
                       )
                     : const LinearGradient(
-                        colors: [Colors.orange, Colors.amber],
+                        colors: [AppColors.accentCoral, AppColors.accentOrange],
                       ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isPronunciationPro ? AppColors.accentCoral : Colors.orange)
+                    color: (isPronunciationPro ? AppColors.accentCoral : AppColors.accentCoral)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -794,7 +815,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: isPronunciationPro ? AppColors.accentCoral : AppColors.textDark,
+            color: isPronunciationPro ? AppColors.accentCoral : Theme.of(context).colorScheme.onSurface,
           ),
         )
         .animate()
@@ -807,9 +828,9 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
           isPronunciationPro
               ? 'Your speaking skills are impressive!'
               : 'Keep practicing to improve your accent!',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
-            color: AppColors.textMedium,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
           textAlign: TextAlign.center,
         )
@@ -842,7 +863,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'Total XP',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
               const SizedBox(width: 12),
@@ -851,7 +872,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                   icon: Icons.mic,
                   value: '$_correctCount',
                   label: 'Good',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
             ],
@@ -864,7 +885,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -897,7 +918,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: accuracy >= 80 ? Colors.green : AppColors.textDark,
+                      color: accuracy >= 80 ? AppColors.success : AppColors.textDark,
                     ),
                   ),
                 ],
@@ -907,9 +928,9 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: accuracy / 100,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    accuracy >= 80 ? Colors.green : Colors.orange,
+                    accuracy >= 80 ? AppColors.success : AppColors.accentCoral,
                   ),
                   minHeight: 12,
                 ),
@@ -969,6 +990,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
       'total': _practiceVocabulary.length,
       'accuracy': accuracy,
       'avgResponseSeconds': 0.0,
+      'wordPerformance': _wordPerformance,
     };
   }
 
@@ -1010,7 +1032,7 @@ class _PronunciationPracticeScreenState extends State<PronunciationPracticeScree
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

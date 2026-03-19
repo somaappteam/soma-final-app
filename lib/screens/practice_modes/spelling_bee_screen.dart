@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/vocabulary_item.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
+import 'dart:async';
+import '../../widgets/practice_results_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Spelling Bee Mode
 /// Practice spelling words correctly
@@ -28,72 +32,175 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
   bool _showResult = false;
   bool _isCorrect = false;
   String _feedback = '';
+  int _totalXP = 0;
+  int _maxStreak = 0;
+  bool _isComplete = false;
+  Duration _timeElapsed = Duration.zero;
+  Timer? _timer;
+  final List<VocabularyItem> _mistakes = [];
+  List<VocabularyItem> _quizVocabulary = [];
   
   @override
   void initState() {
     super.initState();
-    // Play initial word if vocabulary is not empty
-    if (widget.vocabulary.isNotEmpty) {
+    _quizVocabulary = List.from(widget.vocabulary);
+    if (_quizVocabulary.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _playWord();
+        _startTimer();
       });
     }
   }
 
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && !_isComplete) {
+        setState(() {
+          _timeElapsed = Duration(seconds: _timeElapsed.inSeconds + 1);
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _timer?.cancel();
     TtsService().stop();
     _controller.dispose();
     super.dispose();
   }
 
   void _playWord() async {
-    if (widget.vocabulary.isEmpty) return;
-    final currentWord = widget.vocabulary[_currentIndex];
+    if (_quizVocabulary.isEmpty) return;
+    final currentWord = _quizVocabulary[_currentIndex];
     await TtsService().speak(
       currentWord.word,
       languageCode: widget.targetLanguage,
       context: context,
     );
-  }  void _checkSpelling() {
+  }  
+
+  void _checkSpelling() {
     final userAnswer = _controller.text.trim().toLowerCase();
-    final correctAnswer = widget.vocabulary[_currentIndex].word.toLowerCase();
+    final correctAnswer = _quizVocabulary[_currentIndex].word.toLowerCase();
     
     setState(() {
       _isCorrect = userAnswer == correctAnswer;
       _showResult = true;
       
       if (_isCorrect) {
-        _score += 10 + (_streak * 2);
+        final earnedXP = 10 + (_streak * 2);
+        _score += 1;
+        _totalXP += earnedXP;
         _streak++;
+        if (_streak > _maxStreak) _maxStreak = _streak;
         _feedback = 'Excellent!';
+        AudioService().playCorrect();
       } else {
         _streak = 0;
-        _feedback = 'The correct spelling is: ${widget.vocabulary[_currentIndex].word}';
+        final currentWord = _quizVocabulary[_currentIndex];
+        if (!_mistakes.contains(currentWord)) {
+          _mistakes.add(currentWord);
+        }
+        _feedback = 'The correct spelling is: ${_quizVocabulary[_currentIndex].word}';
+        AudioService().playWrong();
       }
     });
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        setState(() {
-          _controller.clear();
-          _showResult = false;
-          _currentIndex = (_currentIndex + 1) % widget.vocabulary.length;
-        });
-        _playWord();
+        if (_currentIndex < _quizVocabulary.length - 1) {
+          setState(() {
+            _controller.clear();
+            _showResult = false;
+            _currentIndex++;
+          });
+          _playWord();
+        } else {
+          _timer?.cancel();
+          setState(() {
+             _isComplete = true;
+          });
+        }
       }
     });
   }
 
+  void _replayMistakes() {
+    setState(() {
+      _quizVocabulary = List.from(_mistakes);
+      _mistakes.clear();
+      _currentIndex = 0;
+      _score = 0;
+      _totalXP = 0;
+      _streak = 0;
+      _maxStreak = 0;
+      _isComplete = false;
+      _timeElapsed = Duration.zero;
+      _controller.clear();
+      _showResult = false;
+    });
+    _playWord();
+    _startTimer();
+  }
+
+  void _restartQuiz() {
+    setState(() {
+      _quizVocabulary = List.from(widget.vocabulary);
+      _mistakes.clear();
+      _currentIndex = 0;
+      _score = 0;
+      _totalXP = 0;
+      _streak = 0;
+      _maxStreak = 0;
+      _isComplete = false;
+      _timeElapsed = Duration.zero;
+      _controller.clear();
+      _showResult = false;
+    });
+    _playWord();
+    _startTimer();
+  }
+
+  Map<String, dynamic> _buildPracticeResult() {
+    final length = _quizVocabulary.length;
+    final accuracy = (length > 0 ? _score / length : 0.0).clamp(0.0, 1.0);
+    return {
+      'correct': _score,
+      'total': length,
+      'accuracy': accuracy,
+      'avgResponseSeconds': 0.0,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (widget.vocabulary.isEmpty) {
+    if (_quizVocabulary.isEmpty) {
       return Scaffold(
          appBar: AppBar(title: const Text('Spelling Bee')),
          body: const Center(child: Text('No vocabulary data available')),
       );
     }
-    final currentWord = widget.vocabulary[_currentIndex];
+
+    if (_isComplete) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: PracticeResultsScreen(
+          correctCount: _score,
+          totalCount: _quizVocabulary.length,
+          xpEarned: _totalXP,
+          timeElapsed: _timeElapsed,
+          bestStreak: _maxStreak,
+          hasMistakes: _mistakes.isNotEmpty,
+          onReplayMistakes: _replayMistakes,
+          onContinueToNext: () => Navigator.pop(context, _buildPracticeResult()),
+          onBackToHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        ),
+      );
+    }
+
+    final currentWord = _quizVocabulary[_currentIndex];
     
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -127,13 +234,13 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                   margin: const EdgeInsets.only(bottom: 24),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.orange.shade600, Colors.red.shade600],
+                    gradient: const LinearGradient(
+                      colors: [AppColors.accentCoral, AppColors.error],
                     ),
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.4),
+                        color: AppColors.accentCoral.withValues(alpha: 0.4),
                         blurRadius: 15,
                       ),
                     ],
@@ -161,12 +268,12 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                    colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
                   ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667eea).withOpacity(0.4),
+                      color: AppColors.primaryPurple.withValues(alpha: 0.4),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -178,7 +285,7 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                     Text(
                       'Hint: ${currentWord.translation}',
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
                         fontSize: 16,
                       ),
                     ),
@@ -198,7 +305,7 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                         children: [
                           Icon(
                             Icons.record_voice_over,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                             size: 18,
                           ),
                           const SizedBox(width: 8),
@@ -227,7 +334,7 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                         currentWord.difficultyLevel,
                         (index) => const Icon(
                           Icons.star,
-                          color: Colors.amber,
+                          color: AppColors.accentOrange,
                           size: 20,
                         ),
                       ),
@@ -245,8 +352,8 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: _showResult
-                        ? (_isCorrect ? Colors.green : Colors.red)
-                        : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                        ? (_isCorrect ? AppColors.success : AppColors.error)
+                        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                     width: 2,
                   ),
                 ),
@@ -261,7 +368,7 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                   decoration: InputDecoration(
                     hintText: 'Type the word...',
                     hintStyle: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(20),
@@ -279,25 +386,25 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: _isCorrect
-                        ? Colors.green.withOpacity(0.2)
-                        : Colors.red.withOpacity(0.2),
+                        ? AppColors.success.withValues(alpha: 0.2)
+                        : AppColors.error.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _isCorrect ? Colors.green : Colors.red,
+                      color: _isCorrect ? AppColors.success : AppColors.error,
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         _isCorrect ? Icons.check_circle : Icons.error,
-                        color: _isCorrect ? Colors.green : Colors.red,
+                        color: _isCorrect ? AppColors.success : AppColors.error,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           _feedback,
                           style: TextStyle(
-                            color: _isCorrect ? Colors.green : Colors.red,
+                            color: _isCorrect ? AppColors.success : AppColors.error,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -323,12 +430,12 @@ class _SpellingBeeScreenState extends State<SpellingBeeScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667eea),
+                    backgroundColor: AppColors.primaryPurple,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    disabledBackgroundColor: Colors.grey.shade800,
+                    disabledBackgroundColor: AppColors.neutralDark,
                   ),
                 ),
               ),

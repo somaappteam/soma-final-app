@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/animated_widgets.dart';
+import '../../models/course_model.dart';
 
 class LanguageSelectionStep extends StatefulWidget {
+  final bool isTargetLanguage;
   final Map<String, dynamic> onboardingData;
   final VoidCallback onNext;
 
   const LanguageSelectionStep({
     super.key,
+    required this.isTargetLanguage,
     required this.onboardingData,
     required this.onNext,
   });
@@ -17,48 +19,71 @@ class LanguageSelectionStep extends StatefulWidget {
 }
 
 class _LanguageSelectionStepState extends State<LanguageSelectionStep> {
-  int _currentSubStep = 0; // 0 = native language, 1 = target language
-  String? _selectedNativeLanguage;
-  String? _selectedTargetLanguage;
+  String? _selectedLanguageCode;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  final List<Map<String, dynamic>> _languages = [
-    {'code': 'en', 'name': 'English', 'flag': '🇺🇸', 'nativeName': 'English'},
-    {'code': 'es', 'name': 'Spanish', 'flag': '🇪🇸', 'nativeName': 'Español'},
-    {'code': 'fr', 'name': 'French', 'flag': '🇫🇷', 'nativeName': 'Français'},
-    {'code': 'de', 'name': 'German', 'flag': '🇩🇪', 'nativeName': 'Deutsch'},
-    {'code': 'it', 'name': 'Italian', 'flag': '🇮🇹', 'nativeName': 'Italiano'},
-    {'code': 'pt', 'name': 'Portuguese', 'flag': '🇧🇷', 'nativeName': 'Português'},
-    {'code': 'ja', 'name': 'Japanese', 'flag': '🇯🇵', 'nativeName': '日本語'},
-    {'code': 'ko', 'name': 'Korean', 'flag': '🇰🇷', 'nativeName': '한국어'},
-    {'code': 'zh', 'name': 'Chinese', 'flag': '🇨🇳', 'nativeName': '中文'},
-    {'code': 'ru', 'name': 'Russian', 'flag': '🇷🇺', 'nativeName': 'Русский'},
-    {'code': 'ar', 'name': 'Arabic', 'flag': '🇸🇦', 'nativeName': 'العربية'},
-    {'code': 'hi', 'name': 'Hindi', 'flag': '🇮🇳', 'nativeName': 'हिन्दी'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    final key = widget.isTargetLanguage ? 'target_language' : 'native_language';
+    final existing = widget.onboardingData[key];
+    if (existing != null && existing is LanguageModel) {
+      _selectedLanguageCode = existing.code;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Filter languages based on search
+    var languages = LanguageModel.availableLanguages.where((lang) {
+      if (_searchQuery.isEmpty) return true;
+      return lang.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          lang.nativeName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          lang.code.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    // If selecting target language, filter out the chosen native language for clarity
+    if (widget.isTargetLanguage && widget.onboardingData.containsKey('native_language')) {
+      final nativeLang = widget.onboardingData['native_language'] as LanguageModel;
+      languages.removeWhere((lang) => lang.code == nativeLang.code);
+    }
+
+    // Group languages by first letter
+    final groupedLanguages = <String, List<LanguageModel>>{};
+    for (final lang in languages) {
+      final firstLetter = lang.name[0].toUpperCase();
+      groupedLanguages.putIfAbsent(firstLetter, () => []).add(lang);
+    }
+    final sortedKeys = groupedLanguages.keys.toList()..sort();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _currentSubStep == 0 ? 'I speak...' : 'I want to learn...',
+                widget.isTargetLanguage ? 'I want to learn...' : 'I speak...',
                 style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
-                _currentSubStep == 0 
-                    ? 'Select your native language'
-                    : 'What language do you want to learn?',
+                widget.isTargetLanguage 
+                    ? 'What language do you want to learn?'
+                    : 'Select your native language',
                 style: const TextStyle(
                   fontSize: 16,
                   color: AppColors.textMedium,
@@ -67,173 +92,150 @@ class _LanguageSelectionStepState extends State<LanguageSelectionStep> {
             ],
           ),
         ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(24),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 1.3,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+        
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: 'Search 185+ languages...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        setState(() {
+                          _searchQuery = '';
+                          _searchController.clear();
+                        });
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            itemCount: _languages.length,
-            itemBuilder: (context, index) {
-              final lang = _languages[index];
-              final isNative = _selectedNativeLanguage == lang['code'];
-              final isTarget = _selectedTargetLanguage == lang['code'];
-              final isSelected = _currentSubStep == 0 ? isNative : isTarget;
-              final isDisabled = _currentSubStep == 1 && _selectedNativeLanguage == lang['code'];
+          ),
+        ),
 
-              return AnimatedCard(
-                delayMs: index * 50,
-                onTap: isDisabled ? null : () => _selectLanguage(lang),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: isSelected ? AppColors.tealGradient : null,
-                    color: isSelected 
-                        ? null 
-                        : isDisabled 
-                            ? Colors.grey.shade100 
-                            : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isSelected 
-                          ? AppColors.primaryTeal 
-                          : isDisabled
-                              ? Colors.grey.shade300
-                              : Colors.grey.shade200,
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Text(
-                            lang['flag'],
-                            style: TextStyle(
-                              fontSize: 48,
-                              color: isDisabled ? Colors.grey.shade400 : null,
-                            ),
-                          ),
-                          if (isDisabled)
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.7),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.block,
-                                color: Colors.grey.shade400,
-                                size: 24,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        lang['name'],
-                        style: TextStyle(
-                          fontSize: 18,
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            itemCount: _searchQuery.isNotEmpty ? languages.length : sortedKeys.length,
+            itemBuilder: (context, index) {
+              if (_searchQuery.isNotEmpty) {
+                final lang = languages[index];
+                return _buildLanguageCard(lang);
+              } else {
+                final letter = sortedKeys[index];
+                final langs = groupedLanguages[letter]!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                      child: Text(
+                        letter,
+                        style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: isSelected 
-                              ? Colors.white 
-                              : isDisabled
-                                  ? Colors.grey.shade400
-                                  : AppColors.textDark,
+                          color: AppColors.primaryTeal,
                         ),
                       ),
-                      if (isSelected)
-                        Container(
-                          margin: const EdgeInsets.only(top: 8),
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: AppColors.primaryTeal,
-                            size: 16,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
+                    ),
+                    ...langs.map((lang) => _buildLanguageCard(lang)),
+                  ],
+                );
+              }
             },
           ),
         ),
-        if (_selectedNativeLanguage != null && _currentSubStep == 0)
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: PulsingButton(
-              onPressed: () => setState(() => _currentSubStep = 1),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward),
-                ],
-              ),
-            ),
-          ),
-        if (_selectedTargetLanguage != null && _currentSubStep == 1)
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: PulsingButton(
-              color: AppColors.success,
-              onPressed: () {
-                widget.onboardingData['native_language'] = _selectedNativeLanguage;
-                widget.onboardingData['target_language'] = _selectedTargetLanguage;
-                widget.onNext();
-              },
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward),
-                ],
-              ),
-            ),
-          ),
+
+        _buildBottomButton(languages),
       ],
     );
   }
 
-  void _selectLanguage(Map<String, dynamic> lang) {
+  Widget _buildLanguageCard(LanguageModel lang) {
+    final isSelected = _selectedLanguageCode == lang.code;
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: isSelected ? 4 : 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isSelected ? AppColors.primaryTeal : AppColors.neutralLight,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: ListTile(
+        onTap: () => _selectLanguage(lang),
+        leading: Text(
+          lang.flag,
+          style: const TextStyle(fontSize: 28),
+        ),
+        title: Text(
+          lang.name,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        subtitle: Text(lang.nativeName),
+        trailing: isSelected
+            ? const Icon(Icons.check_circle, color: AppColors.primaryTeal)
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildBottomButton(List<LanguageModel> languages) {
+    if (_selectedLanguageCode == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () {
+            final selectedLang = LanguageModel.availableLanguages.firstWhere((l) => l.code == _selectedLanguageCode);
+            final key = widget.isTargetLanguage ? 'target_language' : 'native_language';
+            widget.onboardingData[key] = selectedLang;
+            widget.onNext();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryTeal,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Continue',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.arrow_forward),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectLanguage(LanguageModel lang) {
     setState(() {
-      if (_currentSubStep == 0) {
-        if (_selectedNativeLanguage == lang['code']) {
-          _selectedNativeLanguage = null;
-        } else {
-          _selectedNativeLanguage = lang['code'];
-        }
-      } else {
-        if (_selectedTargetLanguage == lang['code']) {
-          _selectedTargetLanguage = null;
-        } else {
-          _selectedTargetLanguage = lang['code'];
-        }
-      }
+      _selectedLanguageCode = lang.code;
     });
   }
 }
+

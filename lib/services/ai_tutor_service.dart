@@ -21,7 +21,6 @@ class AITutorService {
   
   String? _currentSessionId;
   final Map<String, DateTime> _lastRequestTime = {};
-  final Map<String, int> _requestCounts = {};
   
   // OpenAI API Configuration (read from Environment)
   static final String _apiKey = Environment.aiTutorApiKey;
@@ -510,7 +509,7 @@ Remember: You are ONLY for language learning help. No general chat.''';  }
   }
 
   // Legacy methods - DEPRECATED, use context-specific methods above
-  @deprecated
+  @Deprecated('Use explainVocabulary() with proper context.')
   Future<AITutorResponse> explainWordOrPhrase(String wordOrPhrase, String languageCode, {String? context}) async {
     return AITutorResponse(
       response: 'Please use explainVocabulary() with proper context.',
@@ -518,7 +517,7 @@ Remember: You are ONLY for language learning help. No general chat.''';  }
     );
   }
 
-  @deprecated
+  @Deprecated('Grammar checking is only available within lesson context.')
   Future<AITutorResponse> checkGrammar(String text, String languageCode) async {
     return AITutorResponse(
       response: 'Grammar checking is only available within lesson context.',
@@ -526,7 +525,7 @@ Remember: You are ONLY for language learning help. No general chat.''';  }
     );
   }
 
-  @deprecated
+  @Deprecated('Free conversation is not available. Please use the learning content features.')
   Future<AITutorResponse> practiceConversation(String userMessage, String languageCode, {List<Map<String, String>>? history}) async {
     return AITutorResponse(
       response: 'Free conversation is not available. Please use the learning content features.',
@@ -534,7 +533,7 @@ Remember: You are ONLY for language learning help. No general chat.''';  }
     );
   }
 
-  @deprecated
+  @Deprecated('Writing feedback is only available within writing exercises.')
   Future<AITutorResponse> getWritingFeedback(String text, String languageCode) async {
     return AITutorResponse(
       response: 'Writing feedback is only available within writing exercises.',

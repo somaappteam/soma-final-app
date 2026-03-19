@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/user_service.dart';
+import '../../providers/course_provider.dart';
+import '../../models/course_model.dart';
 import '../main_navigation_screen.dart';
 
 class OnboardingCompleteScreen extends StatefulWidget {
@@ -48,8 +51,24 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
   }
 
   Future<void> _savePersonalizedPracticeDefaults(SharedPreferences prefs) async {
-    final targetLanguage = (widget.onboardingData['target_language'] ?? 'es').toString();
-    final nativeLanguage = (widget.onboardingData['native_language'] ?? 'en').toString();
+    final targetData = widget.onboardingData['target_language'];
+    final nativeData = widget.onboardingData['native_language'];
+    
+    String targetLanguage = 'es';
+    String nativeLanguage = 'en';
+
+    if (targetData is LanguageModel) {
+      targetLanguage = targetData.code;
+    } else if (targetData is String) {
+      targetLanguage = targetData;
+    }
+
+    if (nativeData is LanguageModel) {
+      nativeLanguage = nativeData.code;
+    } else if (nativeData is String) {
+      nativeLanguage = nativeData;
+    }
+
     final proficiency =
         (widget.onboardingData['proficiency_level'] ?? 'beginner').toString().toLowerCase();
     final learningStyle =
@@ -79,6 +98,46 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
     await prefs.setString(
       key,
       '{"vocabulary":{"difficulty":"$defaultDifficulty","partOfSpeech":"all","category":"$vocabCategory","questionCount":10,"reviewQueue":"all","autoDifficultyEnabled":$autoDifficulty},"sentences":{"difficulty":"$defaultDifficulty","category":"$sentenceCategory","questionCount":10,"autoDifficultyEnabled":$autoDifficulty}}',
+    );
+  }
+
+  Future<void> _createCourseAndNavigate() async {
+    final targetData = widget.onboardingData['target_language'];
+    final nativeData = widget.onboardingData['native_language'];
+    
+    String targetCode = 'es';
+    String nativeCode = 'en';
+
+    if (targetData is LanguageModel) {
+      targetCode = targetData.code;
+    } else if (targetData is String) {
+      targetCode = targetData;
+    }
+
+    if (nativeData is LanguageModel) {
+      nativeCode = nativeData.code;
+    } else if (nativeData is String) {
+      nativeCode = nativeData;
+    }
+
+    try {
+      final courseProvider = context.read<CourseProvider>();
+      await courseProvider.addCourse(
+        nativeLanguage: nativeCode,
+        targetLanguage: targetCode,
+      );
+    } catch (e) {
+      debugPrint('Error creating course during onboarding: $e');
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MainNavigationScreen(),
+      ),
+      (route) => false,
     );
   }
 
@@ -201,15 +260,7 @@ class _OnboardingCompleteScreenState extends State<OnboardingCompleteScreen>
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MainNavigationScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
+                      onPressed: _createCourseAndNavigate,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
@@ -359,12 +410,12 @@ class ConfettiPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
+      AppColors.error,
+      AppColors.primaryTeal,
+      AppColors.success,
       Colors.yellow,
-      Colors.purple,
-      Colors.orange,
+      AppColors.darkAccentPurple,
+      AppColors.accentCoral,
     ];
 
     final random = progress * 100;

@@ -197,7 +197,7 @@ class CircularProgressAnimated extends StatelessWidget {
               child: CircularProgressIndicator(
                 value: value,
                 strokeWidth: 10,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: AppColors.neutralLight,
                 valueColor: AlwaysStoppedAnimation(color ?? AppColors.primaryTeal),
               ),
             ),
@@ -281,4 +281,5 @@ class _WaveformBarsState extends State<WaveformBars>
     super.dispose();
   }
 }
+
 

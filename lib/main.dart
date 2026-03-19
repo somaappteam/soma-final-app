@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'providers/auth_provider.dart';
-import 'providers/competition_provider.dart';
-import 'providers/course_provider.dart';
-import 'providers/friend_provider.dart';
-import 'providers/message_provider.dart';
-import 'providers/notification_provider.dart';
-import 'providers/premium_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide ChangeNotifierProvider, Consumer;
+import 'package:sentry_flutter/sentry_flutter.dart';
+import 'providers/riverpod_providers.dart';
 import 'providers/theme_provider.dart';
-// NEW: Import new providers
-import 'providers/ai_tutor_provider.dart';
-import 'providers/learning_path_provider.dart';
-import 'providers/gamification_provider.dart';
-import 'providers/app_state.dart';
-
 import 'screens/splash_screen.dart';
 import 'services/supabase_service.dart';
-import 'services/ai_tutor_service.dart';
+import 'services/offline_sync_service.dart';
+import 'services/sound_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -26,38 +17,46 @@ void main() async {
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   
-  // Initialize Supabase
-  await SupabaseService().initialize();
-  
-  // NEW: Initialize AI Tutor service
-  await AITutorService().initialize();
+  // Offline Sync Foundation (Hive & Workmanager)
+  await OfflineSyncService.initialize();
+  await SoundService().initialize();
+
+  // Supabase and AI Tutor initializations
+  final supabaseService = SupabaseService();
+  await supabaseService.initialize();
   
   await Future.delayed(const Duration(milliseconds: 100));
   
-  runApp(const SomaApp());
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = 'https://example@sentry.io/1234567'; // Placeholder DSN
+      options.tracesSampleRate = 1.0;
+    },
+    appRunner: () => runApp(
+      const ProviderScope(
+        child: SomaApp(),
+      ),
+    ),
+  );
 }
 
-class SomaApp extends StatelessWidget {
+class SomaApp extends ConsumerWidget {
   const SomaApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => CompetitionProvider()),
-        ChangeNotifierProvider(create: (_) => CourseProvider()),
-        ChangeNotifierProvider(create: (_) => FriendProvider()),
-        ChangeNotifierProvider(create: (_) => MessageProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => PremiumProvider()),
-        // NEW: AI and Learning features
-        ChangeNotifierProvider(create: (_) => AITutorProvider()),
-        ChangeNotifierProvider(create: (_) => LearningPathProvider()),
-        ChangeNotifierProvider(create: (_) => GamificationProvider()),
-        ChangeNotifierProvider(create: (_) => AppState()),
-
+        ChangeNotifierProvider.value(value: ref.watch(themeNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(authNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(courseNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(premiumNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(gamificationNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(learningPathNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(notificationNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(podcastNotifierProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(appStateProvider)),
+        ChangeNotifierProvider.value(value: ref.watch(aiTutorNotifierProvider)),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../providers/podcast_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/study_models.dart';
+import '../../theme/app_theme.dart';
 
 /// Podcast/Audio Player Screen with transcripts and learning features
 class PodcastPlayerScreen extends StatefulWidget {
-  final String? episodeTitle;
-  final String? podcastName;
+  final Podcast? podcast;
 
   const PodcastPlayerScreen({
     super.key,
-    this.episodeTitle,
-    this.podcastName,
+    this.podcast,
   });
 
   @override
@@ -18,7 +21,6 @@ class PodcastPlayerScreen extends StatefulWidget {
 
 class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   bool _isPlaying = false;
-  bool _isLoading = true;
   double _progress = 0.0;
   double _playbackSpeed = 1.0;
   bool _showTranscript = true;
@@ -27,7 +29,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   bool _isSleepTimerActive = false;
   int _sleepTimerMinutes = 0;
 
-  // Demo transcript segments
+  // Demo transcript segments (Keep for now until real transcripts are implemented in model)
   final List<TranscriptSegment> _transcript = [
     TranscriptSegment(
       startTime: const Duration(seconds: 0),
@@ -66,8 +68,14 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() => _isLoading = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      final podcastProvider = context.read<PodcastProvider>();
+      final userId = authProvider.currentUser?.id;
+
+      if (widget.podcast != null && userId != null) {
+        podcastProvider.selectPodcast(userId, widget.podcast!);
+      }
     });
   }
 
@@ -78,18 +86,44 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
     return '$minutes:$seconds';
   }
 
+  ThemeData get theme => Theme.of(context);
+
   @override
   Widget build(BuildContext context) {
+    final podcastProvider = context.watch<PodcastProvider>();
+    final podcast = podcastProvider.currentPodcast ?? widget.podcast;
+    final isLoading = podcastProvider.isLoading;
+
+    if (podcast == null && !isLoading) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Text(
+            'No podcast selected',
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
             _buildAppBar(),
             Expanded(
-              child: _isLoading ? _buildLoadingState() : _buildPlayerContent(),
+              child: isLoading ? _buildLoadingState() : _buildPlayerContent(podcast!),
             ),
-            _buildBottomPlayer(),
+            _buildBottomPlayer(podcastProvider),
           ],
         ),
       ),
@@ -109,17 +143,17 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.headphones, color: Colors.white70, size: 16),
-                SizedBox(width: 6),
+                const Icon(Icons.headphones, color: Colors.white70, size: 16),
+                const SizedBox(width: 6),
                 Text(
                   'NOW PLAYING',
-                  style: TextStyle(
-                    color: Colors.white70,
+                style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1,
@@ -153,7 +187,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
     );
   }
 
-  Widget _buildPlayerContent() {
+  Widget _buildPlayerContent(Podcast podcast) {
     return Column(
       children: [
         // Podcast artwork
@@ -165,23 +199,35 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.purple.withOpacity(0.3),
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 40,
                 spreadRadius: 5,
               ),
             ],
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-            ),
           ),
-          child: const Center(
-            child: Icon(
-              Icons.podcasts,
-              size: 100,
-              color: Colors.white,
-            ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: podcast.coverImageUrl != null
+                ? Image.network(
+                    podcast.coverImageUrl!,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [theme.colorScheme.primary, theme.colorScheme.primaryContainer],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.podcasts,
+                        size: 100,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
           ),
         ),
         
@@ -191,9 +237,9 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
           child: Column(
             children: [
               Text(
-                widget.episodeTitle ?? 'Episode 12: Food Vocabulary',
-                style: const TextStyle(
-                  color: Colors.white,
+                podcast.title,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -201,11 +247,13 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                widget.podcastName ?? 'Spanish Learning Podcast',
+                podcast.description ?? 'Language Podcast',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 16,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -221,10 +269,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 label: const Text('Transcript'),
                 selected: _showTranscript,
                 onSelected: (selected) => setState(() => _showTranscript = selected),
-                selectedColor: Colors.white.withOpacity(0.2),
+                selectedColor: Colors.white.withValues(alpha: 0.1),
                 backgroundColor: Colors.transparent,
                 labelStyle: TextStyle(
-                  color: _showTranscript ? Colors.white : Colors.white54,
+                  color: _showTranscript ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(width: 8),
@@ -232,10 +280,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 label: const Text('Notes'),
                 selected: !_showTranscript,
                 onSelected: (selected) => setState(() => _showTranscript = !selected),
-                selectedColor: Colors.white.withOpacity(0.2),
+                selectedColor: Colors.white.withValues(alpha: 0.1),
                 backgroundColor: Colors.transparent,
                 labelStyle: TextStyle(
-                  color: !_showTranscript ? Colors.white : Colors.white54,
+                  color: !_showTranscript ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ],
@@ -255,7 +303,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
       ),
       child: ListView.builder(
@@ -275,11 +323,11 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isActive 
-                    ? Colors.white.withOpacity(0.1) 
+                    ? Colors.white.withValues(alpha: 0.1) 
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 border: isActive
-                    ? Border.all(color: Colors.white.withOpacity(0.2))
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.1))
                     : null,
               ),
               child: Column(
@@ -290,7 +338,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                       Text(
                         _formatDuration(segment.startTime),
                         style: TextStyle(
-                          color: isActive ? Colors.amber : Colors.white54,
+                          color: isActive ? AppColors.accentOrange : Colors.white54,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -301,7 +349,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: Colors.amber,
+                            color: AppColors.accentOrange,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -339,13 +387,13 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.2),
+                              color: AppColors.accentOrange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               keyword,
                               style: const TextStyle(
-                                color: Colors.amber,
+                                color: AppColors.accentOrange,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -364,7 +412,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
     );
   }
 
-  Widget _buildBottomPlayer() {
+  Widget _buildBottomPlayer(PodcastProvider podcastProvider) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -373,7 +421,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
           end: Alignment.bottomCenter,
           colors: [
             Colors.transparent,
-            Colors.black.withOpacity(0.8),
+            Colors.black.withValues(alpha: 0.1),
           ],
         ),
       ),
@@ -387,7 +435,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 activeTrackColor: Colors.white,
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
-                overlayColor: Colors.white.withOpacity(0.1),
+                overlayColor: Colors.white.withValues(alpha: 0.1),
                 trackHeight: 4,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
               ),
@@ -406,14 +454,14 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                   Text(
                     '04:32',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.white.withValues(alpha: 0.1),
                       fontSize: 12,
                     ),
                   ),
                   Text(
                     '12:45',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.white.withValues(alpha: 0.1),
                       fontSize: 12,
                     ),
                   ),
@@ -433,7 +481,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -450,23 +498,33 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 // Rewind
                 IconButton(
                   icon: const Icon(Icons.replay_10, color: Colors.white, size: 32),
-                  onPressed: () {},
+                  onPressed: () {
+                    final newPos = (_progress * (podcastProvider.currentPodcast?.durationSeconds ?? 0)).toInt() - 10;
+                    podcastProvider.updatePlaybackPosition(newPos < 0 ? 0 : newPos);
+                  },
                 ),
                 
                 // Play/Pause
                 GestureDetector(
-                  onTap: () => setState(() => _isPlaying = !_isPlaying),
+                  onTap: () {
+                    setState(() => _isPlaying = !_isPlaying);
+                    if (!_isPlaying) {
+                       // Save progress when pausing
+                       final currentPos = (_progress * (podcastProvider.currentPodcast?.durationSeconds ?? 0)).toInt();
+                       podcastProvider.updatePlaybackPosition(currentPos);
+                    }
+                  },
                   child: Container(
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                      gradient: LinearGradient(
+                        colors: [theme.colorScheme.primary, theme.colorScheme.primaryContainer],
                       ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF667eea).withOpacity(0.5),
+                          color: theme.colorScheme.primary.withValues(alpha: 0.5),
                           blurRadius: 20,
                           spreadRadius: 5,
                         ),
@@ -483,7 +541,11 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 // Forward
                 IconButton(
                   icon: const Icon(Icons.forward_10, color: Colors.white, size: 32),
-                  onPressed: () {},
+                  onPressed: () {
+                    final duration = podcastProvider.currentPodcast?.durationSeconds ?? 0;
+                    final newPos = (_progress * duration).toInt() + 10;
+                    podcastProvider.updatePlaybackPosition(newPos > duration ? duration : newPos);
+                  },
                 ),
                 
                 // Sleep timer
@@ -493,13 +555,13 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: _isSleepTimerActive
-                          ? Colors.amber.withOpacity(0.2)
-                          : Colors.white.withOpacity(0.1),
+                          ? AppColors.accentOrange.withValues(alpha: 0.1)
+                          : Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.bedtime,
-                      color: _isSleepTimerActive ? Colors.amber : Colors.white,
+                      color: _isSleepTimerActive ? AppColors.accentOrange : Colors.white,
                       size: 20,
                     ),
                   ),
@@ -513,9 +575,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   }
 
   void _showMoreOptions() {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -528,14 +591,14 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             ListTile(
               leading: Icon(
                 _isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: _isFavorite ? Colors.red : Colors.white,
+                color: _isFavorite ? AppColors.error : Colors.white,
               ),
               title: const Text(
                 'Add to Favorites',
@@ -577,9 +640,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   }
 
   void _showSpeedOptions() {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -592,7 +656,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -612,14 +676,14 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 title: Text(
                   '${speed}x',
                   style: TextStyle(
-                    color: _playbackSpeed == speed ? Colors.amber : Colors.white,
+                    color: _playbackSpeed == speed ? AppColors.accentOrange : Colors.white,
                     fontWeight: _playbackSpeed == speed 
                         ? FontWeight.bold 
                         : FontWeight.normal,
                   ),
                 ),
                 trailing: _playbackSpeed == speed
-                    ? const Icon(Icons.check, color: Colors.amber)
+                    ? const Icon(Icons.check, color: AppColors.accentOrange)
                     : null,
                 onTap: () {
                   setState(() => _playbackSpeed = speed);
@@ -634,9 +698,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   }
 
   void _showSleepTimer() {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -649,7 +714,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -670,12 +735,12 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                   '$minutes minutes',
                   style: TextStyle(
                     color: _sleepTimerMinutes == minutes 
-                        ? Colors.amber 
+                        ? AppColors.accentOrange 
                         : Colors.white,
                   ),
                 ),
                 trailing: _sleepTimerMinutes == minutes
-                    ? const Icon(Icons.check, color: Colors.amber)
+                    ? const Icon(Icons.check, color: AppColors.accentOrange)
                     : null,
                 onTap: () {
                   setState(() {
@@ -689,7 +754,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
             ListTile(
               title: const Text(
                 'Off',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(color: AppColors.error),
               ),
               onTap: () {
                 setState(() {
@@ -706,9 +771,10 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
   }
 
   void _showWordDefinition(String word) {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -724,7 +790,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -740,7 +806,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               Text(
                 'Noun',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
+                  color: Colors.white.withValues(alpha: 0.1),
                   fontSize: 14,
                 ),
               ),
@@ -748,7 +814,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Column(
@@ -757,7 +823,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                     Text(
                       'Definition',
                       style: TextStyle(
-                        color: Colors.amber,
+                        color: AppColors.accentOrange,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -778,7 +844,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                       icon: const Icon(Icons.volume_up),
                       label: const Text('Listen'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF667eea),
+                        backgroundColor: AppColors.primaryPurple,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
@@ -791,7 +857,7 @@ class _PodcastPlayerScreenState extends State<PodcastPlayerScreen> {
                       icon: const Icon(Icons.add),
                       label: const Text('Add Word'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
+                        backgroundColor: AppColors.accentOrange,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
@@ -822,3 +888,4 @@ class TranscriptSegment {
     this.keywords,
   });
 }
+

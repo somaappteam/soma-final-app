@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
 import '../../theme/app_theme.dart';
+import '../../services/audio_service.dart';
 
 /// Premium Speed Challenge - Racing-style Quiz
 /// Fast-paced vocabulary challenge with racing theme
@@ -12,12 +13,14 @@ class SpeedChallengeScreen extends StatefulWidget {
   final List<VocabularyItem> vocabulary;
   final String targetLanguage;
   final String nativeLanguage;
+  final String courseId;
 
   const SpeedChallengeScreen({
     super.key,
     required this.vocabulary,
     required this.targetLanguage,
     required this.nativeLanguage,
+    this.courseId = 'demo',
   });
 
   @override
@@ -57,6 +60,8 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
   double _avgResponseTime = 0;
   int _fastAnswers = 0; // Under 2 seconds
   
+  final Map<String, bool> _wordPerformance = {};
+
   // Animation controllers
   late AnimationController _pulseController;
   late AnimationController _shakeController;
@@ -65,7 +70,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
   @override
   void initState() {
     super.initState();
-    _prepareQuiz();
+    _loadQuestionsAndStart();
     
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -118,12 +123,22 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
     });
   }
 
+  void _loadQuestionsAndStart() {
+    final items = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
+    _quizVocabulary = items.take(30).toList();
+    _buildQuestions();
+    if (mounted) setState(() {});
+  }
+
   void _prepareQuiz() {
     _quizVocabulary = List.from(widget.vocabulary)..shuffle();
     if (_quizVocabulary.length > 30) {
       _quizVocabulary = _quizVocabulary.sublist(0, 30);
     }
+    _buildQuestions();
+  }
 
+  void _buildQuestions() {
     _questions = _quizVocabulary.map((word) {
       final correctAnswer = word.translation;
       final options = _generateOptions(word);
@@ -208,6 +223,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
       _questionsAnswered++;
       
       if (isCorrect) {
+        AudioService().playCorrect();
         _correctAnswers++;
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
@@ -223,6 +239,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
         _score += baseXP + speedBonus;
         _totalXP += earnedXP;
       } else {
+        AudioService().playWrong();
         _wrongAnswers++;
         _streak = 0;
         _comboMultiplier = 1;
@@ -242,6 +259,12 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
         _endGame();
       }
     });
+
+    // Record performance for SRS
+    final currentWordId = (currentQuestion['word'] as VocabularyItem).id;
+    if (!_wordPerformance.containsKey(currentWordId) || !isCorrect) {
+      _wordPerformance[currentWordId] = isCorrect;
+    }
   }
 
   void _endGame() {
@@ -313,13 +336,13 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   fontSize: _countdownValue > 0 ? 120 : 80,
                   fontWeight: FontWeight.bold,
                   color: _countdownValue > 0
-                      ? (_countdownValue == 3 ? Colors.red : _countdownValue == 2 ? Colors.orange : Colors.green)
-                      : const Color(0xFF00FF00),
+                      ? (_countdownValue == 3 ? AppColors.error : _countdownValue == 2 ? AppColors.accentCoral : AppColors.success)
+                      : AppColors.success,
                   shadows: [
                     Shadow(
                       color: (_countdownValue > 0
-                              ? (_countdownValue == 3 ? Colors.red : _countdownValue == 2 ? Colors.orange : Colors.green)
-                              : const Color(0xFF00FF00))
+                              ? (_countdownValue == 3 ? AppColors.error : _countdownValue == 2 ? AppColors.accentCoral : AppColors.success)
+                              : AppColors.success)
                           .withValues(alpha: 0.5),
                       blurRadius: 20,
                     ),
@@ -365,8 +388,8 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.red.shade700.withValues(alpha: 0.2),
-            Colors.orange.withValues(alpha: 0.1),
+            AppColors.error.withValues(alpha: 0.2),
+            AppColors.accentCoral.withValues(alpha: 0.1),
           ],
         ),
       ),
@@ -374,7 +397,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: AppColors.neutralMid.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -390,7 +413,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Colors.red, Colors.orange],
+                      colors: [AppColors.error, AppColors.accentCoral],
                     ),
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -418,7 +441,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.amber.withValues(alpha: 0.3),
+                        color: AppColors.accentOrange.withValues(alpha: 0.3),
                         blurRadius: 10,
                       ),
                     ],
@@ -426,12 +449,12 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                      const Icon(Icons.star, color: AppColors.accentOrange, size: 16),
                       const SizedBox(width: 4),
                       Text(
                         '$_totalXP',
                         style: const TextStyle(
-                          color: Colors.amber,
+                          color: AppColors.accentOrange,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -459,10 +482,10 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDanger ? Colors.red.withValues(alpha: 0.1) : Colors.grey.shade100,
+        color: isDanger ? AppColors.error.withValues(alpha: 0.1) : AppColors.neutralLight,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDanger ? Colors.red.withValues(alpha: 0.5) : Colors.transparent,
+          color: isDanger ? AppColors.error.withValues(alpha: 0.5) : Colors.transparent,
           width: 2,
         ),
       ),
@@ -475,7 +498,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                 children: [
                   Icon(
                     Icons.speed,
-                    color: isDanger ? Colors.red : AppColors.textMedium,
+                    color: isDanger ? AppColors.error : AppColors.textMedium,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -484,7 +507,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isDanger ? Colors.red : AppColors.textDark,
+                      color: isDanger ? AppColors.error : AppColors.textDark,
                     ),
                   ),
                 ],
@@ -494,7 +517,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Colors.orange, Colors.red],
+                      colors: [AppColors.accentCoral, AppColors.error],
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -521,15 +544,15 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade300,
+              backgroundColor: AppColors.neutralMid,
               valueColor: AlwaysStoppedAnimation<Color>(
                 isDanger
-                    ? Colors.red
+                    ? AppColors.error
                     : progress > 0.7
-                        ? Colors.orange
+                        ? AppColors.accentCoral
                         : progress > 0.4
                             ? Colors.yellow
-                            : Colors.green,
+                            : AppColors.success,
               ),
               minHeight: 12,
             ),
@@ -547,12 +570,12 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.red, Colors.purple],
+          colors: [AppColors.accentCoral, AppColors.error, AppColors.darkAccentPurple],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.4),
+            color: AppColors.accentCoral.withValues(alpha: 0.4),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -601,7 +624,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: AppColors.neutralLight,
               borderRadius: BorderRadius.circular(30),
             ),
             child: const Text(
@@ -625,12 +648,12 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Colors.red, Colors.orange],
+                      colors: [AppColors.error, AppColors.accentCoral],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withValues(alpha: 0.4),
+                        color: AppColors.error.withValues(alpha: 0.4),
                         blurRadius: 25,
                         offset: const Offset(0, 10),
                       ),
@@ -693,24 +716,24 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                 final isCorrect = index == question['correctIndex'];
                 final isSelected = _selectedAnswer == index;
                 
-                Color bgColor = Colors.grey.shade50;
-                Color borderColor = Colors.grey.shade300;
+                Color bgColor = AppColors.neutralLight;
+                Color borderColor = AppColors.neutralMid;
                 Color textColor = AppColors.textDark;
                 
                 if (_answered) {
                   if (isCorrect) {
-                    bgColor = Colors.green.shade50;
-                    borderColor = Colors.green;
-                    textColor = Colors.green.shade700;
+                    bgColor = AppColors.success;
+                    borderColor = AppColors.success;
+                    textColor = AppColors.success;
                   } else if (isSelected) {
-                    bgColor = Colors.red.shade50;
-                    borderColor = Colors.red;
-                    textColor = Colors.red.shade700;
+                    bgColor = AppColors.error;
+                    borderColor = AppColors.error;
+                    textColor = AppColors.error;
                   }
                 } else if (isSelected) {
-                  bgColor = Colors.red.withValues(alpha: 0.1);
-                  borderColor = Colors.red;
-                  textColor = Colors.red;
+                  bgColor = AppColors.error.withValues(alpha: 0.1);
+                  borderColor = AppColors.error;
+                  textColor = AppColors.error;
                 }
 
                 return GestureDetector(
@@ -790,7 +813,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
               icon: const Icon(Icons.play_arrow),
               label: const Text('RESUME'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -816,8 +839,8 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: isSpeedDemon
-              ? [Colors.red.shade100, Colors.white]
-              : [Colors.orange.shade100, Colors.white],
+              ? [AppColors.error, Colors.white]
+              : [AppColors.accentCoral, Colors.white],
         ),
       ),
       child: SafeArea(
@@ -853,8 +876,8 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                 gradient: RadialGradient(
                   colors: [
                     isSpeedDemon
-                        ? Colors.red.withValues(alpha: 0.3)
-                        : Colors.orange.withValues(alpha: 0.3),
+                        ? AppColors.error.withValues(alpha: 0.3)
+                        : AppColors.accentCoral.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -868,15 +891,15 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
               decoration: BoxDecoration(
                 gradient: isSpeedDemon
                     ? const LinearGradient(
-                        colors: [Colors.red, Colors.orange],
+                        colors: [AppColors.error, AppColors.accentCoral],
                       )
                     : const LinearGradient(
-                        colors: [Colors.orange, Colors.amber],
+                        colors: [AppColors.accentCoral, AppColors.accentOrange],
                       ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isSpeedDemon ? Colors.red : Colors.orange)
+                    color: (isSpeedDemon ? AppColors.error : AppColors.accentCoral)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -901,7 +924,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: isSpeedDemon ? Colors.red.shade700 : AppColors.textDark,
+            color: isSpeedDemon ? AppColors.error : AppColors.textDark,
           ),
         )
         .animate()
@@ -949,7 +972,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'Total XP',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
               const SizedBox(width: 12),
@@ -958,7 +981,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   icon: Icons.check_circle,
                   value: '$_correctAnswers',
                   label: 'Correct',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
             ],
@@ -971,7 +994,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -980,7 +1003,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                   icon: Icons.bolt,
                   value: '$_fastAnswers',
                   label: 'Fast (<2s)',
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
               ),
             ],
@@ -1004,7 +1027,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: accuracy >= 80 ? Colors.green : AppColors.textDark,
+                      color: accuracy >= 80 ? AppColors.success : AppColors.textDark,
                     ),
                   ),
                 ],
@@ -1014,9 +1037,9 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: accuracy / 100,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    accuracy >= 80 ? Colors.green : Colors.orange,
+                    accuracy >= 80 ? AppColors.success : AppColors.accentCoral,
                   ),
                   minHeight: 12,
                 ),
@@ -1076,6 +1099,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
       'total': _questionsAnswered > 0 ? _questionsAnswered : _questions.length,
       'accuracy': accuracy,
       'avgResponseSeconds': 0.0,
+      'wordPerformance': _wordPerformance,
     };
   }
 
@@ -1096,13 +1120,13 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 8,
-              shadowColor: Colors.red.withValues(alpha: 0.4),
+              shadowColor: AppColors.error.withValues(alpha: 0.4),
             ),
           ),
         )
@@ -1117,7 +1141,7 @@ class _SpeedChallengeScreenState extends State<SpeedChallengeScreen>
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

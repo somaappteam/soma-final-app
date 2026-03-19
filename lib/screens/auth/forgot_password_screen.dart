@@ -28,18 +28,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     setState(() => _isLoading = true);
 
+    final messenger = ScaffoldMessenger.of(context);
     final authProvider = context.read<AuthProvider>();
     await authProvider.resetPassword(_emailController.text.trim());
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (authProvider.error == null) {
       setState(() => _emailSent = true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(authProvider.error!),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -172,20 +174,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
+        color: AppColors.success.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green),
+        border: Border.all(color: AppColors.success),
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 64),
+          const Icon(Icons.check_circle, color: AppColors.success, size: 64),
           const SizedBox(height: 16),
           const Text(
             'Email Sent!',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.green,
+              color: AppColors.success,
             ),
           ),
           const SizedBox(height: 8),
@@ -200,7 +202,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.success,
             ),
             child: const Text('Back to Sign In'),
           ),

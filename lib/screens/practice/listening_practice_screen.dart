@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
 
 /// Premium Listening Practice - Visual Audio Recognition
 /// Users see visual audio representation and select the word
@@ -13,12 +14,14 @@ class ListeningPracticeScreen extends StatefulWidget {
   final List<VocabularyItem> vocabulary;
   final String targetLanguage;
   final String nativeLanguage;
+  final String courseId;
 
   const ListeningPracticeScreen({
     super.key,
     required this.vocabulary,
     required this.targetLanguage,
     required this.nativeLanguage,
+    this.courseId = 'demo',
   });
 
   @override
@@ -52,11 +55,12 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
   
   // Achievement tracking
   int _perfectListens = 0; // Answered correctly on first play
+  final Map<String, bool> _wordPerformance = {};
 
   @override
   void initState() {
     super.initState();
-    _prepareQuiz();
+    _loadQuestionsAndStart();
     _waveController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -78,12 +82,22 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
     });
   }
 
+  void _loadQuestionsAndStart() {
+    final items = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
+    _quizVocabulary = items.take(20).toList();
+    _buildQuestions();
+    if (mounted) setState(() {});
+  }
+
   void _prepareQuiz() {
     _quizVocabulary = List.from(widget.vocabulary)..shuffle();
     if (_quizVocabulary.length > 20) {
       _quizVocabulary = _quizVocabulary.sublist(0, 20);
     }
+    _buildQuestions();
+  }
 
+  void _buildQuestions() {
     _questions = _quizVocabulary.map((word) {
       final options = _generateOptions(word);
       
@@ -159,6 +173,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
       _selectedAnswer = index;
       
       if (isCorrect) {
+        AudioService().playCorrect();
         _correctCount++;
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
@@ -176,6 +191,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
           _perfectListens++;
         }
       } else {
+        AudioService().playWrong();
         _streak = 0;
         _comboMultiplier = 1;
         HapticFeedback.heavyImpact();
@@ -198,6 +214,12 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
         });
       }
     });
+
+    // Record word performance for centralized SRS
+    final currentWordId = (currentQuestion['word'] as VocabularyItem).id;
+    if (!_wordPerformance.containsKey(currentWordId) || !isCorrect) {
+      _wordPerformance[currentWordId] = isCorrect;
+    }
   }
 
   void _restartQuiz() {
@@ -281,7 +303,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
@@ -305,9 +327,9 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                     const SizedBox(height: 4),
                     Text(
                       'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textMedium,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -317,12 +339,12 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.amber, Colors.orange],
+                    colors: [AppColors.accentOrange, AppColors.accentCoral],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.amber.withValues(alpha: 0.3),
+                      color: AppColors.accentOrange.withValues(alpha: 0.3),
                       blurRadius: 8,
                     ),
                   ],
@@ -350,7 +372,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
               minHeight: 8,
             ),
@@ -362,7 +384,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.orange, Colors.red],
+                    colors: [AppColors.accentCoral, AppColors.error],
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -407,15 +429,15 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
               )
             : LinearGradient(
                 colors: [
-                  Colors.grey.shade100,
-                  Colors.grey.shade50,
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                  Theme.of(context).colorScheme.surfaceContainer,
                 ],
               ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: (_showWaveform ? AppColors.primaryTeal : Colors.grey)
-                .withValues(alpha: 0.3),
+            color: (_showWaveform ? AppColors.primaryTeal : Theme.of(context).colorScheme.outline)
+                .withValues(alpha: 0.2),
             blurRadius: 30,
             offset: const Offset(0, 10),
           ),
@@ -452,7 +474,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                       decoration: BoxDecoration(
                         color: _showWaveform
                             ? Colors.white.withValues(alpha: 0.9)
-                            : Colors.grey.shade400,
+                            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     );
@@ -491,7 +513,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                   fontSize: 16,
                   color: _showWaveform
                       ? AppColors.primaryTeal
-                      : AppColors.textMedium,
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -551,15 +573,15 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Text(
+      child: Text(
         'What word did you hear?',
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: AppColors.textDark,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -573,19 +595,19 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
         final isCorrect = index == question['correctIndex'];
         final isSelected = _selectedAnswer == index;
         
-        Color bgColor = Colors.white;
-        Color borderColor = Colors.grey.shade300;
-        Color textColor = AppColors.textDark;
+        Color bgColor = Theme.of(context).cardTheme.color ?? Colors.white;
+        Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.1);
+        Color textColor = Theme.of(context).colorScheme.onSurface;
         
         if (_answered) {
           if (isCorrect) {
-            bgColor = Colors.green.shade50;
-            borderColor = Colors.green;
-            textColor = Colors.green.shade700;
+            bgColor = AppColors.success;
+            borderColor = AppColors.success;
+            textColor = AppColors.success;
           } else if (isSelected && !isCorrect) {
-            bgColor = Colors.red.shade50;
-            borderColor = Colors.red;
-            textColor = Colors.red.shade700;
+            bgColor = AppColors.error;
+            borderColor = AppColors.error;
+            textColor = AppColors.error;
           }
         } else if (isSelected) {
           bgColor = AppColors.primaryTeal.withValues(alpha: 0.1);
@@ -623,9 +645,9 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                     height: 40,
                     decoration: BoxDecoration(
                       color: _answered && isCorrect
-                          ? Colors.green
+                          ? AppColors.success
                           : _answered && isSelected && !isCorrect
-                              ? Colors.red
+                              ? AppColors.error
                               : AppColors.primaryTeal.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
@@ -657,7 +679,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: const BoxDecoration(
-                        color: Colors.green,
+                        color: AppColors.success,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -670,7 +692,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: const BoxDecoration(
-                        color: Colors.red,
+                        color: AppColors.error,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -701,7 +723,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
           end: Alignment.bottomCenter,
           colors: isAudioMaster
               ? [Colors.teal.shade100, Colors.white]
-              : [Colors.grey.shade100, Colors.white],
+              : [AppColors.neutralLight, Colors.white],
         ),
       ),
       child: SafeArea(
@@ -738,7 +760,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                   colors: [
                     isAudioMaster
                         ? AppColors.primaryTeal.withValues(alpha: 0.3)
-                        : Colors.grey.withValues(alpha: 0.2),
+                        : AppColors.neutralMid.withValues(alpha: 0.2),
                     Colors.transparent,
                   ],
                 ),
@@ -758,12 +780,12 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                         ],
                       )
                     : const LinearGradient(
-                        colors: [Colors.orange, Colors.amber],
+                        colors: [AppColors.accentCoral, AppColors.accentOrange],
                       ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isAudioMaster ? AppColors.primaryTeal : Colors.orange)
+                    color: (isAudioMaster ? AppColors.primaryTeal : AppColors.accentCoral)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -836,7 +858,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'Total XP',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
               const SizedBox(width: 12),
@@ -845,7 +867,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                   icon: Icons.check_circle,
                   value: '$_correctCount',
                   label: 'Correct',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
             ],
@@ -858,7 +880,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -891,7 +913,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: accuracy >= 80 ? Colors.green : AppColors.textDark,
+                      color: accuracy >= 80 ? AppColors.success : AppColors.textDark,
                     ),
                   ),
                 ],
@@ -901,9 +923,9 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: accuracy / 100,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    accuracy >= 80 ? Colors.green : Colors.orange,
+                    accuracy >= 80 ? AppColors.success : AppColors.accentCoral,
                   ),
                   minHeight: 12,
                 ),
@@ -963,6 +985,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
       'total': _questions.length,
       'accuracy': accuracy,
       'avgResponseSeconds': 0.0,
+      'wordPerformance': _wordPerformance,
     };
   }
 
@@ -1004,7 +1027,7 @@ class _ListeningPracticeScreenState extends State<ListeningPracticeScreen>
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

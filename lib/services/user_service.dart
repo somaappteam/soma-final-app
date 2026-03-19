@@ -1,6 +1,7 @@
 import '../models/user_model.dart';
 import '../models/leaderboard_model.dart';
 import 'supabase_service.dart';
+import 'offline_sync_service.dart';
 
 class UserService {
   final SupabaseService _supabase = SupabaseService();
@@ -97,10 +98,21 @@ class UserService {
     final userId = _supabase.currentUserId;
     if (userId == null) throw Exception('User not authenticated');
 
-    await _supabase.client.rpc('add_user_xp', params: {
-      'user_id': userId,
-      'xp_points': points,
-    });
+    try {
+      await _supabase.client.rpc('add_user_xp', params: {
+        'user_id': userId,
+        'xp_points': points,
+      });
+    } catch (e) {
+      // If offline or request fails, queue it
+      await OfflineSyncService.enqueueAction({
+        'type': 'addXP',
+        'xp': points,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      // Optionally rethrow if you want UI to know, but offline-first means 
+      // we just swallow it and pretend it succeeded.
+    }
   }
 
   Future<void> updateStreak() async {

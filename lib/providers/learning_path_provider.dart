@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/lesson_model.dart';
+import '../models/story_model.dart';
 import '../services/learning_path_service.dart';
 
 class LearningPathProvider extends ChangeNotifier {
@@ -14,6 +15,9 @@ class LearningPathProvider extends ChangeNotifier {
   List<LessonModel> _recommendedLessons = [];
   List<LessonModel> get recommendedLessons => _recommendedLessons;
   
+  List<StoryModel> _stories = [];
+  List<StoryModel> get stories => _stories;
+  
   List<Map<String, dynamic>> _weakAreas = [];
   List<Map<String, dynamic>> get weakAreas => _weakAreas;
   
@@ -22,6 +26,20 @@ class LearningPathProvider extends ChangeNotifier {
   
   String? _error;
   String? get error => _error;
+
+  Future<void> loadStories(String courseId) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _stories = await _service.getStories(courseId);
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to load stories';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> loadLearningPath(String userId, String courseId) async {
     _isLoading = true;

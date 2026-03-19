@@ -8,10 +8,10 @@ import '../services/mms_tts_service.dart';
 class AppState extends ChangeNotifier {
   Language? nativeLanguage;
   Language? targetLanguage;
-  int currentLevel = 10;
-  int totalXP = 2840;
-  int streakDays = 12;
-  double dailyProgress = 0.65;
+  int currentLevel = 1;
+  int totalXP = 0;
+  int streakDays = 0;
+  double dailyProgress = 0.0;
   
   final List<Language> availableLanguages = [
     Language('om', 'Afaan Oromo', '🌐', 'Afaan Oromo'),
@@ -209,7 +209,7 @@ class AppState extends ChangeNotifier {
     QuizType('pronunciation', 'Pronunciation', 'Perfect your accent', 
         Icons.mic, AppColors.accentOrange, questionCount: 8),
     QuizType('listening', 'Listening', 'Train your ears', 
-        Icons.hearing, Colors.purple, questionCount: 12),
+        Icons.hearing, AppColors.darkAccentPurple, questionCount: 12),
   ];
   
   List<Question> getQuestions(String type) {
@@ -265,8 +265,14 @@ class AppState extends ChangeNotifier {
   }
   
   bool isTtsDownloading = false;
+  bool hideTtsOverlay = false;
   double ttsDownloadProgress = 0.0;
   final MmsTtsService _ttsService = MmsTtsService();
+
+  void hideTtsOverlayForNow() {
+    hideTtsOverlay = true;
+    notifyListeners();
+  }
 
   void selectLanguages(Language native, Language target) {
     nativeLanguage = native;
@@ -282,6 +288,7 @@ class AppState extends ChangeNotifier {
     final hasModel = await _ttsService.isModelDownloaded(langCode);
     if (!hasModel) {
       isTtsDownloading = true;
+      hideTtsOverlay = false;
       ttsDownloadProgress = 0.0;
       notifyListeners();
 

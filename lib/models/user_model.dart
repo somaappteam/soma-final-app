@@ -25,6 +25,7 @@ class UserModel {
   final String? country;
   final DateTime? lastActiveAt;
   final List<String>? achievements;
+  final int gems;
   final Map<String, dynamic>? settings;
 
   UserModel({
@@ -54,6 +55,7 @@ class UserModel {
     this.lastActiveAt,
     this.achievements,
     this.settings,
+    this.gems = 0,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -94,6 +96,7 @@ class UserModel {
           ? List<String>.from(json['achievements'])
           : null,
       settings: json['settings'],
+      gems: json['gems'] ?? 0,
     );
   }
 
@@ -125,6 +128,7 @@ class UserModel {
       'last_active_at': lastActiveAt?.toIso8601String(),
       'achievements': achievements,
       'settings': settings,
+      'gems': gems,
     };
   }
 
@@ -155,6 +159,7 @@ class UserModel {
     DateTime? lastActiveAt,
     List<String>? achievements,
     Map<String, dynamic>? settings,
+    int? gems,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -183,6 +188,7 @@ class UserModel {
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       achievements: achievements ?? this.achievements,
       settings: settings ?? this.settings,
+      gems: gems ?? this.gems,
     );
   }
 }

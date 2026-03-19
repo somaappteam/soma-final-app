@@ -43,7 +43,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: AppColors.neutralLight),
                   ),
                   child: Row(
                     children: [
@@ -52,12 +52,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         height: 56,
                         decoration: BoxDecoration(
                           gradient: _remindersEnabled ? AppColors.tealGradient : null,
-                          color: _remindersEnabled ? null : Colors.grey.shade200,
+                          color: _remindersEnabled ? null : AppColors.neutralLight,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Icon(
                           Icons.notifications_active,
-                          color: _remindersEnabled ? Colors.white : Colors.grey,
+                          color: _remindersEnabled ? Colors.white : AppColors.neutralMid,
                           size: 28,
                         ),
                       ),
@@ -120,7 +120,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey.shade200),
+                        border: Border.all(color: AppColors.neutralLight),
                       ),
                       child: Row(
                         children: [
@@ -206,7 +206,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             border: Border.all(
                               color: isSelected 
                                   ? AppColors.primaryTeal 
-                                  : Colors.grey.shade300,
+                                  : AppColors.neutralMid,
                             ),
                           ),
                           child: Center(
@@ -234,26 +234,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
                           Icon(
                             Icons.emoji_events,
-                            color: Colors.green.shade700,
+                            color: AppColors.success,
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             'Benefits of Reminders',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
+                              color: AppColors.success,
                             ),
                           ),
                         ],
@@ -311,17 +311,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.check_circle,
-            color: Colors.green.shade600,
+            color: AppColors.success,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
             text,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
-              color: Colors.green.shade700,
+              color: AppColors.success,
             ),
           ),
         ],

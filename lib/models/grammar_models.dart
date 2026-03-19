@@ -113,7 +113,7 @@ class GrammarSkillNode {
       'type': type.name,
       'x': x,
       'y': y,
-      'color': color?.value,
+      'color': color?.toARGB32(),
       'isUnlocked': isUnlocked,
       'isCompleted': isCompleted,
       'progress': progress,
@@ -520,3 +520,4 @@ class GrammarErrorPattern {
     );
   }
 }
+

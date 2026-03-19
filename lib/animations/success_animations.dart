@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// Animated success and failure states
 class SuccessAnimation extends StatefulWidget {
@@ -79,11 +80,11 @@ class _SuccessAnimationState extends State<SuccessAnimation>
                   width: widget.size,
                   height: widget.size,
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: AppColors.success,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
+                        color: AppColors.success.withValues(alpha: 0.3),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),
@@ -91,7 +92,7 @@ class _SuccessAnimationState extends State<SuccessAnimation>
                   ),
                   child: Icon(
                     Icons.check_circle,
-                    color: Colors.green.shade600,
+                    color: AppColors.success,
                     size: widget.size * 0.5,
                   ),
                 ),
@@ -102,7 +103,7 @@ class _SuccessAnimationState extends State<SuccessAnimation>
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: AppColors.success,
                     ),
                   ),
                 ],
@@ -180,11 +181,11 @@ class _FailureAnimationState extends State<FailureAnimation>
                 width: widget.size,
                 height: widget.size,
                 decoration: BoxDecoration(
-                  color: Colors.red.shade100,
+                  color: AppColors.error,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withOpacity(0.3),
+                      color: AppColors.error.withValues(alpha: 0.3),
                       blurRadius: 20,
                       spreadRadius: 5,
                     ),
@@ -192,7 +193,7 @@ class _FailureAnimationState extends State<FailureAnimation>
                 ),
                 child: Icon(
                   Icons.close,
-                  color: Colors.red.shade600,
+                  color: AppColors.error,
                   size: widget.size * 0.5,
                 ),
               ),
@@ -203,7 +204,7 @@ class _FailureAnimationState extends State<FailureAnimation>
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.red,
+                    color: AppColors.error,
                   ),
                 ),
               ],
@@ -288,12 +289,12 @@ class Particle {
 
   factory Particle.random() {
     final colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
+      AppColors.error,
+      AppColors.primaryTeal,
+      AppColors.success,
       Colors.yellow,
-      Colors.purple,
-      Colors.orange,
+      AppColors.darkAccentPurple,
+      AppColors.accentCoral,
       Colors.pink,
     ];
     
@@ -319,7 +320,7 @@ class ConfettiPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (var particle in particles) {
       final paint = Paint()
-        ..color = particle.color.withOpacity(1 - progress)
+        ..color = particle.color.withValues(alpha: 1 - progress)
         ..style = PaintingStyle.fill;
 
       final x = particle.x * size.width;
@@ -442,16 +443,16 @@ class _StreakAnimationState extends State<StreakAnimation>
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            Colors.orange.withOpacity(0.3),
+                            AppColors.accentCoral.withValues(alpha: 0.3),
                             Colors.transparent,
                           ],
                         ),
                       ),
                     ),
                     // Flame icon
-                    Icon(
+                    const Icon(
                       Icons.local_fire_department,
-                      color: Colors.orange.shade600,
+                      color: AppColors.accentCoral,
                       size: 120,
                     ),
                     // Streak number
@@ -464,7 +465,7 @@ class _StreakAnimationState extends State<StreakAnimation>
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 4,
                             ),
                           ],
@@ -474,7 +475,7 @@ class _StreakAnimationState extends State<StreakAnimation>
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+                            color: AppColors.accentCoral,
                           ),
                         ),
                       ),
@@ -487,15 +488,15 @@ class _StreakAnimationState extends State<StreakAnimation>
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange,
+                    color: AppColors.accentCoral,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Keep it going!',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey.shade600,
+                    color: AppColors.neutralDark,
                   ),
                 ),
               ],
@@ -604,13 +605,13 @@ class _AchievementUnlockAnimationState extends State<AchievementUnlockAnimation>
                   gradient: LinearGradient(
                     colors: [
                       widget.color,
-                      widget.color.withOpacity(0.8),
+                      widget.color.withValues(alpha: 0.8),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.color.withOpacity(0.4),
+                      color: widget.color.withValues(alpha: 0.4),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -629,7 +630,7 @@ class _AchievementUnlockAnimationState extends State<AchievementUnlockAnimation>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 10,
                             ),
                           ],

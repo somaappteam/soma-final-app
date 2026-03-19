@@ -106,7 +106,6 @@ class PageTransitions {
     return PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) => page,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final screenSize = MediaQuery.of(context).size;
         final centerX = fromRect.left + fromRect.width / 2;
         final centerY = fromRect.top + fromRect.height / 2;
         

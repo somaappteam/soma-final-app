@@ -59,7 +59,7 @@ class _LearningStyleScreenState extends State<LearningStyleScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isSelected ? AppColors.primaryTeal : Colors.grey.shade300,
+                  color: isSelected ? AppColors.primaryTeal : AppColors.neutralMid,
                   width: isSelected ? 2 : 1,
                 ),
               ),

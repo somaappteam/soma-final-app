@@ -15,6 +15,7 @@ class StoryModel {
   final int? estimatedDuration;
   final String? thumbnailUrl;
   final bool isBranching;
+  final List<ComprehensionQuestion> questions;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -33,6 +34,7 @@ class StoryModel {
     this.estimatedDuration,
     this.thumbnailUrl,
     this.isBranching = false,
+    this.questions = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -57,6 +59,9 @@ class StoryModel {
       estimatedDuration: json['estimated_duration'],
       thumbnailUrl: json['thumbnail_url'],
       isBranching: json['is_branching'] ?? false,
+      questions: (json['questions'] as List? ?? [])
+          .map((q) => ComprehensionQuestion.fromJson(q))
+          .toList(),
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -78,6 +83,7 @@ class StoryModel {
       'estimated_duration': estimatedDuration,
       'thumbnail_url': thumbnailUrl,
       'is_branching': isBranching,
+      'questions': questions.map((q) => q.toJson()).toList(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -228,7 +234,7 @@ class StoryCharacter {
       'name': name,
       'avatar_url': avatarUrl,
       'description': description,
-      'color': color?.value,
+      'color': color?.toARGB32(),
       'is_native_speaker': isNativeSpeaker,
     };
   }
@@ -393,3 +399,35 @@ extension StoryTypeExtension on StoryType {
     }
   }
 }
+class ComprehensionQuestion {
+  final String question;
+  final List<String> options;
+  final int correctOptionIndex;
+  final String? explanation;
+
+  ComprehensionQuestion({
+    required this.question,
+    required this.options,
+    required this.correctOptionIndex,
+    this.explanation,
+  });
+
+  factory ComprehensionQuestion.fromJson(Map<String, dynamic> json) {
+    return ComprehensionQuestion(
+      question: json['question'],
+      options: List<String>.from(json['options'] ?? []),
+      correctOptionIndex: json['correct_option_index'] ?? 0,
+      explanation: json['explanation'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'question': question,
+      'options': options,
+      'correct_option_index': correctOptionIndex,
+      'explanation': explanation,
+    };
+  }
+}
+

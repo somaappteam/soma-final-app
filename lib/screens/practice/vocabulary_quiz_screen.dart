@@ -5,17 +5,21 @@ import 'package:flutter/services.dart';
 import '../../models/vocabulary_item.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
+import '../../widgets/practice_results_screen.dart';
 
 class VocabularyQuizScreen extends StatefulWidget {
   final List<VocabularyItem> vocabulary;
   final String targetLanguage;
   final String nativeLanguage;
+  final String courseId;
 
   const VocabularyQuizScreen({
     super.key,
     required this.vocabulary,
     required this.targetLanguage,
     required this.nativeLanguage,
+    this.courseId = 'demo',
   });
 
   @override
@@ -35,6 +39,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
   bool _answered = false;
   int? _selectedAnswer;
   bool _isQuizComplete = false;
+  final List<VocabularyItem> _mistakes = [];
   Duration _timeElapsed = Duration.zero;
   Timer? _timer;
   
@@ -45,8 +50,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
   @override
   void initState() {
     super.initState();
-    _prepareQuiz();
-    _startTimer();
+    _loadQuestionsAndStart();
     _shakeController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -74,12 +78,25 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
     });
   }
 
-  void _prepareQuiz() {
-    _quizVocabulary = List.from(widget.vocabulary)..shuffle();
+  void _loadQuestionsAndStart() {
+    _quizVocabulary = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
     if (_quizVocabulary.length > 15) {
       _quizVocabulary = _quizVocabulary.sublist(0, 15);
     }
+    _buildQuestions();
+    _startTimer();
+    if (mounted) setState(() {});
+  }
 
+  void _prepareQuiz() {
+    _quizVocabulary = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
+    if (_quizVocabulary.length > 15) {
+      _quizVocabulary = _quizVocabulary.sublist(0, 15);
+    }
+    _buildQuestions();
+  }
+
+  void _buildQuestions() {
     _questions = _quizVocabulary.map((word) {
       final correctAnswer = word.translation;
       final options = _generateOptions(word);
@@ -140,6 +157,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
       _selectedAnswer = index;
       
       if (isCorrect) {
+        AudioService().playCorrect();
         _streak++;
         if (_streak > _maxStreak) _maxStreak = _streak;
         
@@ -151,13 +169,22 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
         
         _celebrationController.forward(from: 0);
       } else {
+        AudioService().playWrong();
         _streak = 0;
         _comboMultiplier = 1;
         _shakeController.forward(from: 0);
+        
+        final currentWord = _questions[_currentQuestionIndex]['word'] as VocabularyItem;
+        if (!_mistakes.contains(currentWord)) {
+          _mistakes.add(currentWord);
+        }
       }
     });
 
+    // Note: SRS updates are now handled centrally by PracticeModesScreen
+
     Future.delayed(const Duration(seconds: 1, milliseconds: 500), () {
+      if (!mounted) return;
       if (_currentQuestionIndex < _questions.length - 1) {
         setState(() {
           _currentQuestionIndex++;
@@ -173,6 +200,32 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
     });
   }
 
+  void _replayMistakes() {
+    setState(() {
+      _quizVocabulary = List.from(_mistakes);
+      _mistakes.clear();
+      _questions = _quizVocabulary.map((word) {
+        final correctAnswer = word.translation;
+        final options = _generateOptions(word);
+        
+        return {
+          'word': word,
+          'question': word.word,
+          'context': _generateContext(word),
+          'options': options,
+          'correctIndex': options.indexOf(correctAnswer),
+        };
+      }).toList();
+      _currentQuestionIndex = 0;
+      _score = 0;
+      _answered = false;
+      _selectedAnswer = null;
+      _isQuizComplete = false;
+      _timeElapsed = Duration.zero;
+    });
+    _startTimer();
+  }
+
   void _restartQuiz() {
     setState(() {
       _currentQuestionIndex = 0;
@@ -183,6 +236,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
       _comboMultiplier = 1;
       _answered = false;
       _selectedAnswer = null;
+      _mistakes.clear();
       _isQuizComplete = false;
       _timeElapsed = Duration.zero;
     });
@@ -247,7 +301,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -299,7 +353,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
                   borderRadius: BorderRadius.circular(10),
                   child: LinearProgressIndicator(
                     value: progress,
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
                     minHeight: 8,
                   ),
@@ -317,7 +371,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardTheme.color ?? Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -334,7 +388,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
             icon: Icons.local_fire_department,
             value: '$_streak',
             label: 'Streak',
-            color: Colors.orange,
+            color: AppColors.accentCoral,
             isActive: _streak > 0,
           ),
           if (_comboMultiplier > 1)
@@ -342,7 +396,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
               icon: Icons.flash_on,
               value: 'x$_comboMultiplier',
               label: 'Combo',
-              color: Colors.purple,
+              color: AppColors.darkAccentPurple,
               isActive: true,
             ),
           _buildStatItem(
@@ -383,7 +437,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isActive ? color : AppColors.textDark,
+                  color: isActive ? color : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               Text(
@@ -542,25 +596,25 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    Color backgroundColor = Colors.white;
-    Color borderColor = Colors.grey.shade200;
-    Color textColor = AppColors.textDark;
+    Color backgroundColor = Theme.of(context).cardTheme.color ?? Colors.white;
+    Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.1);
+    Color textColor = Theme.of(context).colorScheme.onSurface;
     IconData? trailingIcon;
     Color? trailingColor;
 
     if (_answered) {
       if (isCorrect) {
-        backgroundColor = Colors.green.shade50;
-        borderColor = Colors.green;
-        textColor = Colors.green.shade700;
+        backgroundColor = AppColors.success;
+        borderColor = AppColors.success;
+        textColor = AppColors.success;
         trailingIcon = Icons.check_circle;
-        trailingColor = Colors.green;
+        trailingColor = AppColors.success;
       } else if (isSelected) {
-        backgroundColor = Colors.red.shade50;
-        borderColor = Colors.red;
-        textColor = Colors.red.shade700;
+        backgroundColor = AppColors.error;
+        borderColor = AppColors.error;
+        textColor = AppColors.error;
         trailingIcon = Icons.cancel;
-        trailingColor = Colors.red;
+        trailingColor = AppColors.error;
       }
     } else if (isSelected) {
       backgroundColor = AppColors.primaryTeal.withValues(alpha: 0.1);
@@ -592,7 +646,7 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? (_answered ? (isCorrect ? Colors.green : Colors.red) : AppColors.primaryTeal)
+                    ? (_answered ? (isCorrect ? AppColors.success : AppColors.error) : AppColors.primaryTeal)
                     : AppColors.primaryTeal.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -623,267 +677,37 @@ class _VocabularyQuizScreenState extends State<VocabularyQuizScreen>
   }
 
   Widget _buildResultsScreen() {
-    final accuracy = (_score / _questions.length * 100).round();
-    final isPerfect = _score == _questions.length;
-    
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: isPerfect
-              ? [Colors.amber.shade100, Colors.white]
-              : [AppColors.primaryTeal.withValues(alpha: 0.1), Colors.white],
-        ),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              _buildAchievementBadge(isPerfect, accuracy),
-              const SizedBox(height: 32),
-              _buildResultsStats(),
-              const SizedBox(height: 40),
-              _buildActionButtons(),
-            ],
-          ),
-        ),
-      ),
+    return PracticeResultsScreen(
+      correctCount: _score,
+      totalCount: _questions.length,
+      xpEarned: _totalXP,
+      timeElapsed: _timeElapsed,
+      bestStreak: _maxStreak,
+      hasMistakes: _mistakes.isNotEmpty,
+      onReplayMistakes: _replayMistakes,
+      onContinueToNext: () => Navigator.pop(context, _buildPracticeResult()),
+      onBackToHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
-
-  Widget _buildAchievementBadge(bool isPerfect, int accuracy) {
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    isPerfect ? Colors.amber.withValues(alpha: 0.3) : AppColors.primaryTeal.withValues(alpha: 0.3),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                gradient: isPerfect
-                    ? const LinearGradient(colors: [Colors.amber, Colors.orange])
-                    : AppColors.tealGradient,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (isPerfect ? Colors.amber : AppColors.primaryTeal).withValues(alpha: 0.4),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Icon(
-                isPerfect ? Icons.emoji_events : Icons.military_tech,
-                color: Colors.white,
-                size: 70,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Text(
-          isPerfect ? 'Perfect Score!' : 'Quiz Complete!',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: isPerfect ? Colors.amber.shade700 : AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          isPerfect ? 'You got all questions right! Amazing!' : 'Great effort! Keep practicing to improve.',
-          style: const TextStyle(fontSize: 16, color: AppColors.textMedium),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResultsStats() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.check_circle,
-                  value: '$_score/${_questions.length}',
-                  label: 'Correct',
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.star,
-                  value: '$_totalXP',
-                  label: 'XP Earned',
-                  color: Colors.amber,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.local_fire_department,
-                  value: '$_maxStreak',
-                  label: 'Best Streak',
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.timer,
-                  value: '${_timeElapsed.inMinutes}:${(_timeElapsed.inSeconds % 60).toString().padLeft(2, '0')}',
-                  label: 'Time',
-                  color: AppColors.primaryTeal,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Accuracy', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  Text(
-                    '${(_score / _questions.length * 100).round()}%',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryTeal),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: _score / _questions.length,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _score == _questions.length ? Colors.amber : AppColors.primaryTeal,
-                  ),
-                  minHeight: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.8))),
-        ],
-      ),
-    );
-  }
-
 
   Map<String, dynamic> _buildPracticeResult() {
-    final accuracy = (_score / _questions.length).clamp(0.0, 1.0);
+    final accuracy = _questions.isEmpty ? 0.0 : (_score / _questions.length).clamp(0.0, 1.0);
+    
+    // Build word-level performance map
+    final Map<String, bool> wordPerformance = {};
+    for (final question in _questions) {
+      final wordId = (question['word'] as VocabularyItem).id;
+      // If the word isn't in mistakes, they got it right.
+      wordPerformance[wordId] = !_mistakes.any((m) => m.id == wordId);
+    }
+    
     return {
-      'correct': (_score),
+      'correct': _score,
       'total': _questions.length,
       'accuracy': accuracy,
       'avgResponseSeconds': 0.0,
+      'wordPerformance': wordPerformance,
     };
-  }
-
-  Widget _buildActionButtons() {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: _restartQuiz,
-            icon: const Icon(Icons.replay),
-            label: const Text(
-              'Play Again',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 8,
-              shadowColor: AppColors.primaryTeal.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: OutlinedButton(
-            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            child: const Text(
-              'Back to Practice',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
 

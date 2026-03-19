@@ -6,6 +6,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
+import '../../widgets/practice_results_screen.dart';
 
 /// Premium Flashcards with Spaced Repetition System
 /// 3D flip animations, gamification, and rich statistics
@@ -13,12 +15,14 @@ class FlashcardsScreen extends StatefulWidget {
   final List<VocabularyItem> vocabulary;
   final String targetLanguage;
   final String nativeLanguage;
+  final String courseId;
 
   const FlashcardsScreen({
     super.key,
     required this.vocabulary,
     required this.targetLanguage,
     required this.nativeLanguage,
+    this.courseId = 'demo',
   });
 
   @override
@@ -56,8 +60,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
   @override
   void initState() {
     super.initState();
-    _prepareCards();
-    _startTimer();
+    _loadCardsAndStart();
     
     _flipController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -110,6 +113,20 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
     });
   }
 
+  void _loadCardsAndStart() {
+    final items = List<VocabularyItem>.from(widget.vocabulary)..shuffle();
+    final selected = items.take(15).toList();
+    setState(() {
+      _cardSessions = selected
+          .map((v) => CardSession(
+                vocabulary: v,
+                difficulty: _calculateDifficulty(v.difficultyLevel),
+              ))
+          .toList();
+    });
+    _startTimer();
+  }
+
   void _prepareCards() {
     _cardSessions = widget.vocabulary.map((vocab) => CardSession(
       vocabulary: vocab,
@@ -149,6 +166,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
     setState(() {
       currentSession.rating = rating;
       currentSession.reviewedAt = DateTime.now();
+      
+      if (rating == CardRating.good || rating == CardRating.easy) {
+        AudioService().playCorrect();
+      } else {
+        AudioService().playWrong();
+      }
       
       // Update counts
       switch (rating) {
@@ -198,6 +221,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
         }
       });
     });
+
+    // Note: SRS updates are now handled centrally by PracticeModesScreen
   }
 
   int _getXPForRating(CardRating rating) {
@@ -211,6 +236,30 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
       case CardRating.easy:
         return 20;
     }
+  }
+
+  void _replayMistakes() {
+    setState(() {
+      _cardSessions = _cardSessions
+          .where((s) => s.rating == CardRating.again || s.rating == CardRating.hard)
+          .toList();
+      _cardSessions.shuffle();
+      _currentIndex = 0;
+      _isFlipped = false;
+      _score = 0;
+      _totalXP = 0;
+      _streak = 0;
+      _maxStreak = 0;
+      _comboMultiplier = 1;
+      _knownCount = 0;
+      _learningCount = 0;
+      _masteredCount = 0;
+      _isComplete = false;
+      _timeElapsed = Duration.zero;
+    });
+    _startTimer();
+    _flipController.reset();
+    _slideController.reset();
   }
 
   void _restartSession() {
@@ -290,7 +339,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -354,7 +403,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardTheme.color ?? Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -371,7 +420,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
             icon: Icons.local_fire_department,
             value: '$_streak',
             label: 'Streak',
-            color: Colors.orange,
+            color: AppColors.accentCoral,
             isActive: _streak > 0,
           ),
           if (_comboMultiplier > 1)
@@ -379,7 +428,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
               icon: Icons.flash_on,
               value: 'x$_comboMultiplier',
               label: 'Combo',
-              color: Colors.purple,
+              color: AppColors.darkAccentPurple,
               isActive: true,
             )
             .animate()
@@ -423,12 +472,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isActive ? color : AppColors.textDark,
+                  color: isActive ? color : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               Text(
                 label,
-                style: const TextStyle(fontSize: 10, color: AppColors.textMedium),
+                style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
               ),
             ],
           ),
@@ -468,7 +517,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
               minHeight: 10,
             ),
@@ -477,13 +526,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
           // Mastery stats
           Row(
             children: [
-              _buildMasteryBadge('Again', _learningCount, Colors.red),
+              _buildMasteryBadge('Again', _learningCount, AppColors.error),
               const SizedBox(width: 8),
-              _buildMasteryBadge('Learning', _learningCount, Colors.orange),
+              _buildMasteryBadge('Learning', _learningCount, AppColors.accentCoral),
               const SizedBox(width: 8),
-              _buildMasteryBadge('Known', _knownCount, Colors.blue),
+              _buildMasteryBadge('Known', _knownCount, AppColors.primaryTeal),
               const SizedBox(width: 8),
-              _buildMasteryBadge('Mastered', _masteredCount, Colors.green),
+              _buildMasteryBadge('Mastered', _masteredCount, AppColors.success),
             ],
           ),
         ],
@@ -571,10 +620,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF8F9FA)],
+          colors: [
+            Theme.of(context).cardTheme.color ?? Colors.white,
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+          ],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
@@ -638,10 +690,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                         Flexible(
                           child: Text(
                             displayText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 42,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textDark,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -664,14 +716,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.neutralLight,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           card.pronunciationIpa!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
-                            color: AppColors.textMedium,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                             fontStyle: FontStyle.italic,
                           ),
                         ),
@@ -851,10 +903,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
 
   Widget _buildDifficultyIndicator(int level) {
     final color = level <= 1
-        ? Colors.green
+        ? AppColors.success
         : level <= 3
-            ? Colors.orange
-            : Colors.red;
+            ? AppColors.accentCoral
+            : AppColors.error;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -926,7 +978,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                   child: _buildRatingButton(
                     label: 'Again',
                     subtitle: '< 1m',
-                    color: Colors.red,
+                    color: AppColors.error,
                     icon: Icons.refresh,
                     onTap: () => _rateCard(CardRating.again),
                   ),
@@ -936,7 +988,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                   child: _buildRatingButton(
                     label: 'Hard',
                     subtitle: '< 6m',
-                    color: Colors.orange,
+                    color: AppColors.accentCoral,
                     icon: Icons.sentiment_dissatisfied,
                     onTap: () => _rateCard(CardRating.hard),
                   ),
@@ -946,7 +998,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                   child: _buildRatingButton(
                     label: 'Good',
                     subtitle: '10m',
-                    color: Colors.blue,
+                    color: AppColors.primaryTeal,
                     icon: Icons.thumb_up,
                     onTap: () => _rateCard(CardRating.good),
                   ),
@@ -956,7 +1008,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
                   child: _buildRatingButton(
                     label: 'Easy',
                     subtitle: '4d',
-                    color: Colors.green,
+                    color: AppColors.success,
                     icon: Icons.sentiment_very_satisfied,
                     onTap: () => _rateCard(CardRating.easy),
                   ),
@@ -1022,325 +1074,41 @@ class _FlashcardsScreenState extends State<FlashcardsScreen>
   }
 
   Widget _buildResultsScreen() {
-    final total = _knownCount + _learningCount + _masteredCount;
-    final masteryRate = total > 0 ? (_masteredCount / total * 100).round() : 0;
+    final correctCount = _knownCount + _masteredCount;
+    final hasMistakes = _learningCount > 0;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: masteryRate >= 80
-              ? [Colors.green.shade100, Colors.white]
-              : [AppColors.primaryTeal.withValues(alpha: 0.1), Colors.white],
-        ),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              _buildResultsBadge(masteryRate),
-              const SizedBox(height: 32),
-              _buildResultsStats(masteryRate),
-              const SizedBox(height: 40),
-              _buildResultsActions(),
-            ],
-          ),
-        ),
-      ),
+    return PracticeResultsScreen(
+      correctCount: correctCount,
+      totalCount: _cardSessions.length,
+      xpEarned: _totalXP,
+      timeElapsed: _timeElapsed,
+      bestStreak: _maxStreak,
+      hasMistakes: hasMistakes,
+      onReplayMistakes: _replayMistakes,
+      onContinueToNext: () => Navigator.pop(context, _buildPracticeResult()),
+      onBackToHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
-
-  Widget _buildResultsBadge(int masteryRate) {
-    final isExcellent = masteryRate >= 80;
-    
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    isExcellent
-                        ? Colors.green.withValues(alpha: 0.3)
-                        : AppColors.primaryTeal.withValues(alpha: 0.3),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                gradient: isExcellent
-                    ? const LinearGradient(
-                        colors: [Colors.green, Colors.teal],
-                      )
-                    : AppColors.tealGradient,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (isExcellent ? Colors.green : AppColors.primaryTeal)
-                        .withValues(alpha: 0.4),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Icon(
-                isExcellent ? Icons.workspace_premium : Icons.style,
-                color: Colors.white,
-                size: 70,
-              ),
-            )
-            .animate()
-            .scale(duration: 600.ms, curve: Curves.elasticOut),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Text(
-          isExcellent ? 'Excellent Progress!' : 'Session Complete!',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: isExcellent ? Colors.green.shade700 : AppColors.textDark,
-          ),
-        )
-        .animate()
-        .fadeIn(delay: 300.ms)
-        .slideY(begin: 0.2, end: 0),
-        const SizedBox(height: 8),
-        Text(
-          'You reviewed ${_cardSessions.length} cards in ${_timeElapsed.inMinutes}m ${_timeElapsed.inSeconds % 60}s',
-          style: const TextStyle(
-            fontSize: 16,
-            color: AppColors.textMedium,
-          ),
-          textAlign: TextAlign.center,
-        )
-        .animate()
-        .fadeIn(delay: 400.ms),
-      ],
-    );
-  }
-
-  Widget _buildResultsStats(int masteryRate) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.sentiment_very_satisfied,
-                  value: '$_masteredCount',
-                  label: 'Mastered',
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.thumb_up,
-                  value: '$_knownCount',
-                  label: 'Known',
-                  color: Colors.blue,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.refresh,
-                  value: '$_learningCount',
-                  label: 'Learning',
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildResultStatCard(
-                  icon: Icons.star,
-                  value: '$_totalXP',
-                  label: 'XP Earned',
-                  color: Colors.amber,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Mastery Rate',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    '$masteryRate%',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: masteryRate >= 80 ? Colors.green : AppColors.primaryTeal,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: masteryRate / 100,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    masteryRate >= 80 ? Colors.green : AppColors.primaryTeal,
-                  ),
-                  minHeight: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    )
-    .animate()
-    .fadeIn(delay: 500.ms)
-    .slideY(begin: 0.1, end: 0);
-  }
-
-  Widget _buildResultStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withValues(alpha: 0.8),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
 
   Map<String, dynamic> _buildPracticeResult() {
-    final accuracy = (_cardSessions.isNotEmpty ? _score / _cardSessions.length : 0).clamp(0.0, 1.0);
+    final accuracy = (_cardSessions.isNotEmpty ? (_knownCount + _masteredCount) / _cardSessions.length : 0).clamp(0.0, 1.0);
+    
+    // Build word-level performance map
+    final Map<String, bool> wordPerformance = {};
+    for (final session in _cardSessions) {
+      if (session.rating != null) {
+        // Considered correct if rated 'good' or 'easy'
+        wordPerformance[session.vocabulary.id] = session.rating == CardRating.good || session.rating == CardRating.easy;
+      }
+    }
+    
     return {
-      'correct': _score,
+      'correct': _knownCount + _masteredCount,
       'total': _cardSessions.length,
       'accuracy': accuracy,
       'avgResponseSeconds': 0.0,
+      'wordPerformance': wordPerformance,
     };
-  }
-
-  Widget _buildResultsActions() {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: _restartSession,
-            icon: const Icon(Icons.replay),
-            label: const Text(
-              'Practice Again',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: AppColors.primaryTeal.withValues(alpha: 0.4),
-            ),
-          ),
-        )
-        .animate()
-        .fadeIn(delay: 700.ms)
-        .slideY(begin: 0.2, end: 0),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: OutlinedButton(
-            onPressed: () => Navigator.pop(context, _buildPracticeResult()),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: const Text(
-              'Back to Practice',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        )
-        .animate()
-        .fadeIn(delay: 800.ms),
-      ],
-    );
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/vocabulary_item.dart';
+import '../../services/audio_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Premium Falling Words Game
@@ -217,6 +218,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
         _score += 10;
         _totalXP += earnedXP;
         _correctMatches++;
+        AudioService().playCorrect();
       });
 
       _spawnWord();
@@ -230,6 +232,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
         _streak = 0;
         _comboMultiplier = 1;
         _score = _score > 5 ? _score - 5 : 0;
+        AudioService().playWrong();
       });
     }
   }
@@ -247,6 +250,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           _missedWords++;
           _streak = 0;
           _comboMultiplier = 1;
+          AudioService().playWrong();
 
           // Remove after delay
           Future.delayed(const Duration(milliseconds: 300), () {
@@ -314,7 +318,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF667eea).withValues(alpha: 0.15),
+            AppColors.primaryPurple.withValues(alpha: 0.15),
             Colors.transparent,
           ],
         ),
@@ -323,7 +327,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: AppColors.neutralMid.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -348,9 +352,9 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   borderRadius: BorderRadius.circular(10),
                   child: LinearProgressIndicator(
                     value: _timeRemaining / widget.durationSeconds,
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: AppColors.neutralLight,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      _timeRemaining <= 10 ? Colors.red : const Color(0xFF667eea),
+                      _timeRemaining <= 10 ? AppColors.error : AppColors.primaryPurple,
                     ),
                     minHeight: 8,
                   ),
@@ -363,7 +367,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -410,7 +414,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
             icon: Icons.local_fire_department,
             value: '$_streak',
             label: 'Streak',
-            color: Colors.orange,
+            color: AppColors.accentCoral,
             isActive: _streak > 0,
           ),
           if (_comboMultiplier > 1)
@@ -418,7 +422,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
               icon: Icons.flash_on,
               value: 'x$_comboMultiplier',
               label: 'Combo',
-              color: Colors.purple,
+              color: AppColors.darkAccentPurple,
               isActive: true,
             )
             .animate()
@@ -428,7 +432,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
             icon: Icons.timer,
             value: '$_timeRemaining',
             label: 'Sec',
-            color: _timeRemaining <= 10 ? Colors.red : AppColors.textMedium,
+            color: _timeRemaining <= 10 ? AppColors.error : AppColors.textMedium,
             isActive: _timeRemaining <= 10,
           ),
           IconButton(
@@ -499,14 +503,14 @@ class _FallingWordsGameState extends State<FallingWordsGame>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF667eea),
-                Color(0xFF764ba2),
+                AppColors.primaryPurple,
+                AppColors.secondaryPurple,
               ],
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF667eea).withValues(alpha: 0.3 + (_pulseController.value * 0.2)),
+                color: AppColors.primaryPurple.withValues(alpha: 0.3 + (_pulseController.value * 0.2)),
                 blurRadius: 20 + (_pulseController.value * 10),
                 spreadRadius: -2,
               ),
@@ -633,19 +637,19 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: word.isMissed
-                      ? [Colors.red.shade400, Colors.red.shade600]
+                      ? [AppColors.error, AppColors.danger]
                       : isTarget
-                          ? [Colors.amber.shade400, Colors.orange.shade500]
-                          : [Colors.white, Colors.grey.shade100],
+                          ? [AppColors.accentOrange, AppColors.accentCoral]
+                          : [Colors.white, AppColors.neutralLight],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
                     color: (word.isMissed 
-                            ? Colors.red 
+                            ? AppColors.error 
                             : isTarget 
-                                ? Colors.amber 
-                                : Colors.grey)
+                                ? AppColors.accentOrange 
+                                : AppColors.neutralDark)
                         .withValues(alpha: 0.4),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
@@ -653,7 +657,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                 ],
                 border: Border.all(
                   color: isTarget 
-                      ? Colors.amber.shade300 
+                      ? AppColors.accentOrange 
                       : Colors.transparent,
                   width: 3,
                 ),
@@ -690,7 +694,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withValues(alpha: 0.7),
                   blurRadius: 30,
                   offset: const Offset(0, -10),
                 ),
@@ -718,7 +722,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                       return ElevatedButton(
                         onPressed: _isPaused ? null : () => _checkMatch(option),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF667eea),
+                          backgroundColor: AppColors.primaryPurple,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
@@ -728,7 +732,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 6,
-                          shadowColor: const Color(0xFF667eea).withValues(alpha: 0.4),
+                          shadowColor: AppColors.primaryPurple.withValues(alpha: 0.4),
                         ),
                         child: Text(
                           option,
@@ -761,8 +765,8 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: isPerfect
-              ? [Colors.amber.shade100, Colors.white]
-              : [const Color(0xFF667eea).withValues(alpha: 0.1), Colors.white],
+              ? [AppColors.warningLight, Colors.white]
+              : [AppColors.primaryPurple.withValues(alpha: 0.1), Colors.white],
         ),
       ),
       child: SafeArea(
@@ -798,8 +802,8 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                 gradient: RadialGradient(
                   colors: [
                     isPerfect
-                        ? Colors.amber.withValues(alpha: 0.3)
-                        : const Color(0xFF667eea).withValues(alpha: 0.3),
+                        ? AppColors.accentOrange.withValues(alpha: 0.3)
+                        : AppColors.primaryPurple.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -813,15 +817,15 @@ class _FallingWordsGameState extends State<FallingWordsGame>
               decoration: BoxDecoration(
                 gradient: isPerfect
                     ? const LinearGradient(
-                        colors: [Colors.amber, Colors.orange],
+                        colors: [AppColors.accentOrange, AppColors.accentCoral],
                       )
                     : const LinearGradient(
-                        colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                        colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
                       ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (isPerfect ? Colors.amber : const Color(0xFF667eea))
+                    color: (isPerfect ? AppColors.accentOrange : AppColors.primaryPurple)
                         .withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
@@ -846,7 +850,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
-            color: isPerfect ? Colors.amber.shade700 : AppColors.textDark,
+            color: isPerfect ? AppColors.accentOrange : AppColors.textDark,
           ),
         )
         .animate()
@@ -894,7 +898,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   icon: Icons.check_circle,
                   value: '$_correctMatches',
                   label: 'Caught',
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
               const SizedBox(width: 12),
@@ -903,7 +907,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   icon: Icons.star,
                   value: '$_totalXP',
                   label: 'XP Earned',
-                  color: Colors.amber,
+                  color: AppColors.accentOrange,
                 ),
               ),
             ],
@@ -916,7 +920,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   icon: Icons.local_fire_department,
                   value: '$_maxStreak',
                   label: 'Best Streak',
-                  color: Colors.orange,
+                  color: AppColors.accentCoral,
                 ),
               ),
               const SizedBox(width: 12),
@@ -925,7 +929,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                   icon: Icons.close,
                   value: '$_missedWords',
                   label: 'Missed',
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
               ),
             ],
@@ -949,7 +953,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: accuracy >= 80 ? Colors.green : AppColors.primaryTeal,
+                      color: accuracy >= 80 ? AppColors.success : AppColors.primaryTeal,
                     ),
                   ),
                 ],
@@ -959,9 +963,9 @@ class _FallingWordsGameState extends State<FallingWordsGame>
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: accuracy / 100,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: AppColors.neutralLight,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    accuracy >= 80 ? Colors.green : AppColors.primaryTeal,
+                    accuracy >= 80 ? AppColors.success : AppColors.primaryTeal,
                   ),
                   minHeight: 12,
                 ),
@@ -1041,13 +1045,13 @@ class _FallingWordsGameState extends State<FallingWordsGame>
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF667eea),
+              backgroundColor: AppColors.primaryPurple,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 8,
-              shadowColor: const Color(0xFF667eea).withValues(alpha: 0.4),
+              shadowColor: AppColors.primaryPurple.withValues(alpha: 0.4),
             ),
           ),
         )
@@ -1064,7 +1068,7 @@ class _FallingWordsGameState extends State<FallingWordsGame>
             onPressed: () => Navigator.pop(context, _buildPracticeResult()),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
-              side: BorderSide(color: Colors.grey.shade300),
+              side: const BorderSide(color: AppColors.neutralMid),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1107,7 +1111,7 @@ class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.1)
+      ..color = AppColors.neutralMid.withValues(alpha: 0.2)
       ..strokeWidth = 1;
     
     const spacing = 50.0;
@@ -1124,3 +1128,4 @@ class GridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

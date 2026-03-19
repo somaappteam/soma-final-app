@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../models/study_models.dart';
+import '../../models/story_model.dart';
+import '../../models/study_models.dart' as legacy;
 import '../../services/haptic_feedback_service.dart';
 import '../../theme/app_theme.dart';
 
 class StoryReaderScreen extends StatefulWidget {
-  final Story story;
-  final UserStoryProgress? progress;
+  final StoryModel story;
+  final legacy.UserStoryProgress? progress;
 
   const StoryReaderScreen({
     super.key,
@@ -25,12 +26,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   bool _isPlaying = false;
   double _fontSize = 18;
   int _currentPosition = 0;
+  bool _autoScroll = false;
   
-  StoryAnnotation? _selectedAnnotation;
+  legacy.StoryAnnotation? _selectedAnnotation;
   bool _showAnnotationPanel = false;
   
-  List<StoryBookmark> _bookmarks = [];
-  List<StoryNote> _notes = [];
+  List<legacy.StoryBookmark> _bookmarks = [];
+  List<legacy.StoryNote> _notes = [];
+  
+  String _flattenedContent = '';
+  List<legacy.StoryAnnotation> _flattenedAnnotations = [];
   
   late ScrollController _scrollController;
 
@@ -39,6 +44,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     super.initState();
     _scrollController = ScrollController();
     _hapticService.initialize();
+    
+    _flattenStory();
     
     if (widget.progress != null) {
       _bookmarks = widget.progress!.bookmarks;
@@ -50,6 +57,48 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       if (_currentPosition > 0) {
         _scrollToPosition(_currentPosition);
       }
+    });
+  }
+
+  void _flattenStory() {
+    final contentBuffer = StringBuffer();
+    final annotations = <legacy.StoryAnnotation>[];
+    
+    for (final scene in widget.story.scenes) {
+      if (scene.narration != null) {
+        final start = contentBuffer.length;
+        contentBuffer.writeln(scene.narration);
+        contentBuffer.writeln();
+      }
+      
+      for (final dialogue in scene.dialogues) {
+        final start = contentBuffer.length;
+        final dialogueText = '${dialogue.characterId}: ${dialogue.text}';
+        contentBuffer.writeln(dialogueText);
+        
+        // Map vocabulary highlights to annotations if they exist
+        if (dialogue.vocabularyToHighlight != null) {
+          for (final word in dialogue.vocabularyToHighlight!) {
+            final wordStart = dialogueText.indexOf(word);
+            if (wordStart != -1) {
+              annotations.add(legacy.StoryAnnotation(
+                id: 'anno_${annotations.length}',
+                word: word,
+                text: word,
+                translation: dialogue.translation ?? 'No translation available',
+                startOffset: start + wordStart,
+                endOffset: start + wordStart + word.length,
+              ));
+            }
+          }
+        }
+        contentBuffer.writeln();
+      }
+    }
+    
+    setState(() {
+      _flattenedContent = contentBuffer.toString();
+      _flattenedAnnotations = annotations;
     });
   }
 
@@ -91,6 +140,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Widget _buildAppBar() {
+    final theme = Theme.of(context);
     return SliverAppBar(
       expandedHeight: 200,
       floating: false,
@@ -104,13 +154,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           ),
         ),
         background: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF667eea),
-                Color(0xFF764ba2),
+                theme.colorScheme.primary,
+                theme.colorScheme.primaryContainer,
               ],
             ),
           ),
@@ -124,7 +174,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -136,7 +186,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -148,7 +198,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -156,14 +206,14 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                         children: [
                           Icon(
                             Icons.timer,
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             size: 16,
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '${widget.story.estimatedReadTime} min',
+                            '${widget.story.estimatedDuration ?? 5} min',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 14,
                             ),
                           ),
@@ -171,11 +221,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: widget.story.difficultyColor.withOpacity(0.9),
+                              color: _getDifficultyColor(widget.story.difficultyLevel).withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              widget.story.difficultyDisplay,
+                              _getDifficultyDisplay(widget.story.difficultyLevel),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
@@ -186,12 +236,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                         ],
                       ),
                     ),
-                    if (widget.story.nativeTitle != null) ...[
+                    if (widget.story.culturalContext != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        widget.story.nativeTitle!,
+                        widget.story.culturalContext!,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 16,
                           fontStyle: FontStyle.italic,
                         ),
@@ -236,14 +286,15 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Widget _buildReadingControls() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardTheme.color ?? Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
           ),
         ],
@@ -260,10 +311,10 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             icon: Icons.translate,
             label: 'Translate',
             isActive: _showTranslation,
-            onTap: () {
-              setState(() => _showTranslation = !_showTranslation);
-              _hapticService.toggle();
-            },
+              onTap: () {
+                setState(() => _showTranslation = !_showTranslation);
+                _hapticService.lightImpact();
+              },
           ),
           const Spacer(),
           Row(
@@ -298,17 +349,18 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     required VoidCallback onTap,
     bool isActive = false,
   }) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? AppColors.primaryTeal.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.1),
+              ? theme.colorScheme.primary.withValues(alpha: 0.1)
+              : theme.colorScheme.onSurface.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
           border: isActive
-              ? Border.all(color: AppColors.primaryTeal)
+              ? Border.all(color: theme.colorScheme.primary)
               : null,
         ),
         child: Row(
@@ -316,7 +368,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             Icon(
               icon,
               size: 20,
-              color: isActive ? AppColors.primaryTeal : AppColors.textMedium,
+              color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 6),
             Text(
@@ -324,7 +376,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: isActive ? AppColors.primaryTeal : AppColors.textMedium,
+                color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -353,14 +405,14 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     var lastEnd = 0;
     
     // Sort annotations by start position
-    final sortedAnnotations = List<StoryAnnotation>.from(widget.story.annotations)
+    final sortedAnnotations = List<legacy.StoryAnnotation>.from(_flattenedAnnotations)
       ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
     
     for (final annotation in sortedAnnotations) {
       // Add plain text before annotation
       if (annotation.startOffset > lastEnd) {
         segments.add(TextSegment(
-          text: widget.story.content.substring(lastEnd, annotation.startOffset),
+          text: _flattenedContent.substring(lastEnd, annotation.startOffset),
         ));
       }
       
@@ -374,9 +426,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     }
     
     // Add remaining plain text
-    if (lastEnd < widget.story.content.length) {
+    if (lastEnd < _flattenedContent.length) {
       segments.add(TextSegment(
-        text: widget.story.content.substring(lastEnd),
+        text: _flattenedContent.substring(lastEnd),
       ));
     }
     
@@ -384,17 +436,18 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Widget _buildAnnotatedSegment(TextSegment segment) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: () => _showAnnotation(segment.annotation!),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
-          color: AppColors.primaryTeal.withOpacity(0.1),
+          color: theme.colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(4),
-          border: const Border(
+          border: Border(
             bottom: BorderSide(
-              color: AppColors.primaryTeal,
+              color: theme.colorScheme.primary,
               width: 2,
             ),
           ),
@@ -404,7 +457,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           style: TextStyle(
             fontSize: _fontSize,
             height: 1.8,
-            color: AppColors.primaryTeal,
+            color: theme.colorScheme.primary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -423,7 +476,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     );
   }
 
-  void _showAnnotation(StoryAnnotation annotation) {
+  void _showAnnotation(legacy.StoryAnnotation annotation) {
     _hapticService.lightImpact();
     setState(() {
       _selectedAnnotation = annotation;
@@ -431,7 +484,28 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     });
   }
 
+  Color _getDifficultyColor(int level) {
+    switch (level) {
+      case 1: return AppColors.success;
+      case 2: return AppColors.primaryTeal;
+      case 3: return AppColors.accentCoral;
+      case 4: return AppColors.error;
+      default: return AppColors.neutralMid;
+    }
+  }
+
+  String _getDifficultyDisplay(int level) {
+    switch (level) {
+      case 1: return 'Beginner';
+      case 2: return 'Intermediate';
+      case 3: return 'Advanced';
+      case 4: return 'Expert';
+      default: return 'Mixed';
+    }
+  }
+
   Widget _buildAnnotationPanel() {
+    final theme = Theme.of(context);
     return Positioned(
       bottom: 0,
       left: 0,
@@ -439,11 +513,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: theme.cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 20,
             ),
           ],
@@ -458,7 +532,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryTeal.withOpacity(0.1),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -573,16 +647,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.purple.withOpacity(0.05),
+        color: AppColors.darkAccentPurple.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.purple.withOpacity(0.2)),
+        border: Border.all(color: AppColors.darkAccentPurple.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.school, color: Colors.purple, size: 20),
+              Icon(Icons.school, color: AppColors.darkAccentPurple, size: 20),
               SizedBox(width: 8),
               Text(
                 'Grammar Focus',
@@ -599,8 +673,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             children: widget.story.grammarFocus.map((grammar) {
               return Chip(
                 label: Text(grammar),
-                backgroundColor: Colors.purple.withOpacity(0.1),
-                side: BorderSide(color: Colors.purple.withOpacity(0.3)),
+                backgroundColor: AppColors.darkAccentPurple.withValues(alpha: 0.1),
+                side: BorderSide(color: AppColors.darkAccentPurple.withValues(alpha: 0.3)),
               );
             }).toList(),
           ),
@@ -615,16 +689,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.05),
+        color: AppColors.primaryTeal.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.translate, color: Colors.blue, size: 20),
+              Icon(Icons.translate, color: AppColors.primaryTeal, size: 20),
               SizedBox(width: 8),
               Text(
                 'Key Vocabulary',
@@ -641,8 +715,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             children: widget.story.vocabularyFocus.map((vocab) {
               return Chip(
                 label: Text(vocab),
-                backgroundColor: Colors.blue.withOpacity(0.1),
-                side: BorderSide(color: Colors.blue.withOpacity(0.3)),
+                backgroundColor: AppColors.primaryTeal.withValues(alpha: 0.1),
+                side: BorderSide(color: AppColors.primaryTeal.withValues(alpha: 0.3)),
               );
             }).toList(),
           ),
@@ -652,17 +726,18 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Widget _buildComprehensionSection() {
+    final theme = Theme.of(context);
     if (widget.story.questions.isEmpty) return const SizedBox.shrink();
-    
+
     return Container(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
           ),
         ],
@@ -675,10 +750,10 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.quiz, color: Colors.green),
+                child: const Icon(Icons.quiz, color: AppColors.success),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -737,7 +812,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.all(16),
           alignment: Alignment.centerLeft,
-          side: BorderSide(color: Colors.grey.shade300),
+          side: const BorderSide(color: AppColors.neutralMid),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -747,7 +822,131 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     );
   }
 
+  Widget _buildReaderSettings() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: theme.cardColor,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Reading Settings',
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          _buildSettingSlider(
+            label: 'Font Size',
+            value: _fontSize,
+            min: 14,
+            max: 28,
+            divisions: 7,
+            onChanged: (value) {
+              setState(() {
+                _fontSize = value;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildSettingToggle(
+            label: 'Show Translation',
+            value: _showTranslation,
+            onChanged: (value) {
+              setState(() {
+                _showTranslation = value;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildSettingToggle(
+            label: 'Auto-scroll',
+            value: _autoScroll,
+            onChanged: (value) {
+              setState(() {
+                _autoScroll = value;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingSlider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required ValueChanged<double> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          divisions: divisions,
+          label: value.round().toString(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingToggle({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSceneProgress() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      color: theme.scaffoldBackgroundColor,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(
+            value: 0.5, // Replace with actual progress
+            backgroundColor: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+            valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Scene 1 of 5', // Replace with actual scene info
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFloatingControls() {
+    final theme = Theme.of(context);
     return Positioned(
       bottom: 20,
       left: 20,
@@ -755,11 +954,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 20,
             ),
           ],
@@ -860,13 +1059,14 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   void _showStoryOptions() {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: theme.cardTheme.color ?? Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -905,10 +1105,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
 class TextSegment {
   final String text;
-  final StoryAnnotation? annotation;
+  final legacy.StoryAnnotation? annotation;
 
   TextSegment({
     required this.text,
     this.annotation,
   });
 }
+

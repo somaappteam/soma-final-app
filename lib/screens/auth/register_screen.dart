@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../onboarding/onboarding_flow_screen.dart';
@@ -39,7 +40,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please accept the terms and conditions'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -67,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.error!),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -116,7 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.error!),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -375,20 +376,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildOrDivider() {
-    return Row(
+    return const Row(
       children: [
-        Expanded(child: Divider(color: Colors.grey.shade300)),
+        Expanded(child: Divider(color: AppColors.neutralMid)),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'OR',
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: AppColors.neutralMid,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.grey.shade300)),
+        Expanded(child: Divider(color: AppColors.neutralMid)),
       ],
     );
   }
@@ -398,10 +399,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       height: 56,
       child: OutlinedButton.icon(
         onPressed: _isLoading ? null : _signUpWithGoogle,
-        icon: Image.network(
-          'https://www.google.com/favicon.ico',
+        icon: CachedNetworkImage(
+          imageUrl: 'https://www.google.com/favicon.ico',
           height: 24,
-          errorBuilder: (_, __, ___) => const Icon(Icons.login),
+          placeholder: (context, url) => const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorWidget: (context, url, error) => const Icon(Icons.login),
         ),
         label: const Text(
           'Continue with Google',
@@ -414,7 +420,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          side: BorderSide(color: Colors.grey.shade300),
+          side: const BorderSide(color: AppColors.neutralMid),
         ),
       ),
     );

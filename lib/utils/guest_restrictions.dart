@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/auth/register_screen.dart';
+import '../theme/app_theme.dart';
 
 /// Guest Mode Restrictions
 /// Defines what features are available to guest users vs authenticated users
@@ -41,11 +42,11 @@ class GuestRestrictions {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            Icon(Icons.lock, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            const Expanded(
+            Icon(Icons.lock, color: AppColors.accentCoral),
+            SizedBox(width: 8),
+            Expanded(
               child: Text('Sign In Required'),
             ),
           ],
@@ -73,7 +74,7 @@ class GuestRestrictions {
             icon: const Icon(Icons.person_add),
             label: const Text('Create Account'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
+              backgroundColor: AppColors.accentCoral,
               foregroundColor: Colors.white,
             ),
           ),
@@ -90,14 +91,14 @@ class GuestRestrictions {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.orange.shade400,
+            AppColors.accentCoral,
             Colors.deepOrange.shade400,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.3),
+            color: AppColors.accentCoral.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

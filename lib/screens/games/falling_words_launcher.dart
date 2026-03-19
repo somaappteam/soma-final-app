@@ -32,14 +32,14 @@ class FallingWordsLauncher extends StatelessWidget {
                 height: 120,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.purple, Colors.blue],
+                    colors: [AppColors.darkAccentPurple, AppColors.primaryTeal],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.withValues(alpha: 0.3),
+                      color: AppColors.darkAccentPurple.withValues(alpha: 0.3),
                       blurRadius: 20,
                       spreadRadius: 5,
                     ),
@@ -199,4 +199,5 @@ class FallingWordsLauncher extends StatelessWidget {
     Navigator.pop(context, result);
   }
 }
+
 

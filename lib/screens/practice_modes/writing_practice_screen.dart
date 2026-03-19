@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/tts_service.dart';
+import '../../services/audio_service.dart';
+import '../../theme/app_theme.dart';
 
 /// Writing Practice Mode with AI feedback
 /// Write sentences and get AI-powered corrections
@@ -64,6 +66,11 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
         
         _aiFeedback = 'Great effort! Your writing shows good understanding of basic grammar. I\'ve identified a few areas for improvement. Keep practicing!';
         _score = 85;
+        if (_score >= 70) {
+          AudioService().playCorrect();
+        } else {
+          AudioService().playWrong();
+        }
       });
     });
   }
@@ -102,7 +109,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _getScoreColor().withOpacity(0.2),
+                    color: _getScoreColor().withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -128,8 +135,8 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: (_currentIndex + 1) / widget.sentences.length,
-                  backgroundColor: Colors.grey.shade800,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF667eea)),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                   minHeight: 8,
                 ),
               ),
@@ -140,13 +147,18 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.tertiary,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667eea).withOpacity(0.4),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -166,13 +178,13 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                             color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Row(
+                          child: const Row(
                             children: [
-                              const Icon(Icons.edit, color: Colors.white, size: 16),
-                              const SizedBox(width: 6),
+                              Icon(Icons.edit, color: Colors.white, size: 16),
+                              SizedBox(width: 6),
                               Text(
                                 'Level 1',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
@@ -207,7 +219,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                                 Text(
                                   'Example:',
                                   style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -219,7 +231,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                                       TtsService().speak(example, languageCode: widget.targetLanguage, context: context);
                                     }
                                   },
-                                  child: const Icon(Icons.volume_up, color: Color(0xFF667eea), size: 20),
+                                  child: const Icon(Icons.volume_up, color: Colors.white, size: 20),
                                 ),
                               ],
                             ),
@@ -227,7 +239,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                             Text(
                               currentPrompt['full_sentence'] as String? ?? '',
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontSize: 14,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -249,7 +261,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                     ),
                   ),
                   child: TextField(
@@ -263,7 +275,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                     decoration: InputDecoration(
                       hintText: 'Write your response here...',
                       hintStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                       ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(20),
@@ -278,7 +290,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _getScoreColor().withOpacity(0.5),
+                      color: _getScoreColor().withValues(alpha: 0.5),
                     ),
                   ),
                   child: Column(
@@ -287,7 +299,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                       Text(
                         'Your Writing:',
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                           fontSize: 12,
                         ),
                       ),
@@ -311,24 +323,21 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: const Color(0xFF10B981).withOpacity(0.3),
+                      color: AppColors.success.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.2),
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.psychology,
-                          color: Color(0xFF10B981),
-                        ),
+                        child: const Icon(Icons.check, color: Colors.white, size: 16),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -338,7 +347,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                             const Text(
                               'AI Feedback',
                               style: TextStyle(
-                                color: Color(0xFF10B981),
+                                color: AppColors.success,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -346,7 +355,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                             Text(
                               _aiFeedback,
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
                                 fontSize: 14,
                               ),
                             ),
@@ -364,7 +373,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                   Text(
                     'Corrections',
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -404,12 +413,12 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667eea),
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    disabledBackgroundColor: Colors.grey.shade700,
+                    disabledBackgroundColor: Theme.of(context).disabledColor,
                   ),
                 ),
               ),
@@ -426,13 +435,13 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: correction.type == CorrectionType.grammar
-            ? Colors.red.withOpacity(0.1)
-            : Colors.orange.withOpacity(0.1),
+            ? AppColors.error.withValues(alpha: 0.1)
+            : AppColors.accentCoral.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: correction.type == CorrectionType.grammar
-              ? Colors.red.withOpacity(0.3)
-              : Colors.orange.withOpacity(0.3),
+              ? AppColors.error.withValues(alpha: 0.3)
+              : AppColors.accentCoral.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -444,16 +453,16 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: correction.type == CorrectionType.grammar
-                      ? Colors.red.withOpacity(0.2)
-                      : Colors.orange.withOpacity(0.2),
+                      ? AppColors.error.withValues(alpha: 0.2)
+                      : AppColors.accentCoral.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   correction.type == CorrectionType.grammar ? 'Grammar' : 'Style',
                   style: TextStyle(
                     color: correction.type == CorrectionType.grammar
-                        ? Colors.red
-                        : Colors.orange,
+                        ? AppColors.error
+                        : AppColors.accentCoral,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -468,13 +477,13 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: AppColors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     correction.original,
                     style: const TextStyle(
-                      color: Colors.red,
+                      color: AppColors.error,
                       decoration: TextDecoration.lineThrough,
                     ),
                   ),
@@ -482,19 +491,19 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Icon(Icons.arrow_forward, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                child: Icon(Icons.arrow_forward, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
               ),
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     correction.corrected,
                     style: const TextStyle(
-                      color: Colors.green,
+                      color: AppColors.success,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -506,7 +515,7 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
           Text(
             correction.explanation,
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               fontSize: 13,
             ),
           ),
@@ -516,9 +525,9 @@ class _WritingPracticeScreenState extends State<WritingPracticeScreen> {
   }
 
   Color _getScoreColor() {
-    if (_score >= 80) return Colors.green;
-    if (_score >= 60) return Colors.orange;
-    return Colors.red;
+    if (_score >= 80) return AppColors.success;
+    if (_score >= 60) return AppColors.accentCoral;
+    return AppColors.error;
   }
 }
 

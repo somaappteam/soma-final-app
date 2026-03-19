@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 // Simple logo generator for Soma
 // Run with: dart run lib/utils/generate_logo.dart
@@ -10,7 +11,7 @@ void main() async {
   await generateLogo(
     'assets/icons/soma_logo.png',
     size: 1024,
-    backgroundColor: const Color(0xFF6B4EFF),
+    backgroundColor: AppColors.primaryPurple,
     foregroundColor: Colors.white,
   );
   

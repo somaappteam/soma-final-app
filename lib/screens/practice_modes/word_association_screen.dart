@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import '../../models/vocabulary_item.dart';
+import 'dart:async';
+import '../../services/audio_service.dart';
+import '../../widgets/practice_results_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Word Association Mode
 /// Match words with their meanings in a grid
 class WordAssociationScreen extends StatefulWidget {
-  const WordAssociationScreen({super.key});
+  final List<VocabularyItem> vocabulary;
+  final String targetLanguage;
+  final String nativeLanguage;
+
+  const WordAssociationScreen({
+    super.key,
+    required this.vocabulary,
+    required this.targetLanguage,
+    required this.nativeLanguage,
+  });
 
   @override
   State<WordAssociationScreen> createState() => _WordAssociationScreenState();
@@ -14,27 +28,44 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
   int _score = 0;
   int _matches = 0;
   int _moves = 0;
-  final int _timeElapsed = 0;
+  Duration _timeElapsed = Duration.zero;
+  Timer? _timer;
   bool _isGameComplete = false;
   
   String? _selectedWord;
   int? _selectedIndex;
   
-  final List<Map<String, dynamic>> _wordPairs = [
-    {'word': 'Gato', 'translation': 'Cat', 'emoji': '🐱'},
-    {'word': 'Perro', 'translation': 'Dog', 'emoji': '🐶'},
-    {'word': 'Casa', 'translation': 'House', 'emoji': '🏠'},
-    {'word': 'Sol', 'translation': 'Sun', 'emoji': '☀️'},
-    {'word': 'Luna', 'translation': 'Moon', 'emoji': '🌙'},
-    {'word': 'Agua', 'translation': 'Water', 'emoji': '💧'},
-  ];
-  
+  late List<Map<String, dynamic>> _wordPairs;
   late List<GameCard> _cards;
 
   @override
   void initState() {
     super.initState();
+    _wordPairs = widget.vocabulary.take(6).map((v) => {
+      'id': v.id,
+      'word': v.word,
+      'translation': v.translation,
+      'emoji': null, // No emoji in VocabularyItem yet
+    }).toList();
     _initializeGame();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && !_isGameComplete) {
+        setState(() {
+          _timeElapsed = Duration(seconds: _timeElapsed.inSeconds + 1);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   void _initializeGame() {
@@ -43,16 +74,16 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
     // Create pairs
     for (var pair in _wordPairs) {
       _cards.add(GameCard(
-        id: '${pair['word']}_word',
+        id: '${pair['id']}_word',
         text: pair['word'],
-        matchId: pair['word'],
+        matchId: pair['id'],
         type: CardType.word,
         emoji: pair['emoji'],
       ));
       _cards.add(GameCard(
-        id: '${pair['word']}_trans',
+        id: '${pair['id']}_trans',
         text: pair['translation'],
-        matchId: pair['word'],
+        matchId: pair['id'],
         type: CardType.translation,
         emoji: pair['emoji'],
       ));
@@ -80,14 +111,16 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
           _cards[_selectedIndex!].isMatched = true;
           _matches++;
           _score += 100;
+          AudioService().playCorrect();
           
           // Check if game complete
           if (_matches == _wordPairs.length) {
+            _timer?.cancel();
             _isGameComplete = true;
-            _showWinDialog();
           }
         } else {
           // No match
+          AudioService().playWrong();
           Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted) {
               setState(() {
@@ -104,68 +137,49 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
     });
   }
 
-  void _showWinDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Center(
-          child: Text(
-            '🎉 Perfect!',
-            style: TextStyle(fontSize: 28),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildResultRow('Score', '$_score'),
-            const SizedBox(height: 8),
-            _buildResultRow('Moves', '$_moves'),
-            const SizedBox(height: 8),
-            _buildResultRow('Time', '$_timeElapsed sec'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Exit'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _score = 0;
-                _matches = 0;
-                _moves = 0;
-                _isGameComplete = false;
-                _initializeGame();
-              });
-            },
-            child: const Text('Play Again'),
-          ),
-        ],
-      ),
-    );
+  Map<String, dynamic> _buildPracticeResult() {
+    return {
+      'correct': _matches,
+      'total': _wordPairs.length,
+      'accuracy': 1.0,
+      'avgResponseSeconds': 0.0,
+    };
   }
 
-  Widget _buildResultRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey.shade600)),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-      ],
-    );
+  void _replayGame() {
+    setState(() {
+      _score = 0;
+      _matches = 0;
+      _moves = 0;
+      _isGameComplete = false;
+      _timeElapsed = Duration.zero;
+      _selectedWord = null;
+      _selectedIndex = null;
+      _initializeGame();
+    });
+    _startTimer();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isGameComplete) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: PracticeResultsScreen(
+          correctCount: _matches,
+          totalCount: _wordPairs.length,
+          xpEarned: _score,
+          timeElapsed: _timeElapsed,
+          bestStreak: 0,
+          hasMistakes: true,
+          replayButtonLabel: 'Play Again',
+          onReplayMistakes: _replayGame,
+          onContinueToNext: () => Navigator.pop(context, _buildPracticeResult()),
+          onBackToHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -196,8 +210,8 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildStatCard('Matches', '$_matches/${_wordPairs.length}', Colors.green),
-                  _buildStatCard('Moves', '$_moves', Colors.blue),
+                  _buildStatCard('Matches', '$_matches/${_wordPairs.length}', AppColors.success),
+                  _buildStatCard('Moves', '$_moves', AppColors.primaryTeal),
                 ],
               ),
             ),
@@ -230,9 +244,9 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -247,7 +261,7 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.7),
+              color: color.withValues(alpha: 0.7),
               fontSize: 12,
             ),
           ),
@@ -267,24 +281,24 @@ class _WordAssociationScreenState extends State<WordAssociationScreen> {
         decoration: BoxDecoration(
           gradient: card.isMatched
               ? const LinearGradient(
-                  colors: [Colors.green, Colors.lightGreen],
+                  colors: [AppColors.success, Colors.lightGreen],
                 )
               : card.isRevealed
                   ? const LinearGradient(
-                      colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                      colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
                     )
-                  : LinearGradient(
+                  : const LinearGradient(
                       colors: [
-                        Colors.grey.shade800,
-                        Colors.grey.shade900,
+                        AppColors.neutralDark,
+                        AppColors.neutralDark,
                       ],
                     ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: card.isRevealed || card.isMatched
               ? [
                   BoxShadow(
-                    color: (card.isMatched ? Colors.green : const Color(0xFF667eea))
-                        .withOpacity(0.4),
+                    color: (card.isMatched ? AppColors.success : AppColors.primaryPurple)
+                        .withValues(alpha: 0.4),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),

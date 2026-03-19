@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:shimmer/shimmer.dart';
 
 /// Skeleton loading widgets for smooth loading states
@@ -21,8 +22,8 @@ class SkeletonLoader extends StatelessWidget {
     if (!isLoading) return child;
 
     return Shimmer.fromColors(
-      baseColor: baseColor ?? Colors.grey.shade300,
-      highlightColor: highlightColor ?? Colors.grey.shade100,
+      baseColor: baseColor ?? AppColors.neutralMid,
+      highlightColor: highlightColor ?? AppColors.neutralLight,
       child: child,
     );
   }
@@ -112,8 +113,8 @@ class SkeletonList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -159,8 +160,8 @@ class SkeletonGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -190,8 +191,8 @@ class SkeletonVocabularyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(20),
@@ -233,8 +234,8 @@ class SkeletonStoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         height: 180,
@@ -295,8 +296,8 @@ class SkeletonQuizCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(24),
@@ -331,8 +332,8 @@ class SkeletonProfile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: Column(
         children: [
           Container(
@@ -389,8 +390,8 @@ class SkeletonStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: AppColors.neutralMid,
+      highlightColor: AppColors.neutralLight,
       child: Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(20),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// Achievement categories
 enum AchievementCategory {
@@ -16,25 +17,25 @@ enum AchievementCategory {
   Color get color {
     switch (this) {
       case AchievementCategory.general:
-        return Colors.blue;
+        return AppColors.primaryTeal;
       case AchievementCategory.streak:
-        return Colors.orange;
+        return AppColors.accentCoral;
       case AchievementCategory.vocabulary:
-        return Colors.green;
+        return AppColors.success;
       case AchievementCategory.grammar:
-        return Colors.purple;
+        return AppColors.darkAccentPurple;
       case AchievementCategory.reading:
         return Colors.teal;
       case AchievementCategory.listening:
         return Colors.indigo;
       case AchievementCategory.speaking:
-        return Colors.red;
+        return AppColors.error;
       case AchievementCategory.writing:
         return Colors.brown;
       case AchievementCategory.social:
         return Colors.pink;
       case AchievementCategory.mastery:
-        return Colors.amber;
+        return AppColors.accentOrange;
     }
   }
 
@@ -101,17 +102,17 @@ enum AchievementTier {
   Color get color {
     switch (this) {
       case AchievementTier.bronze:
-        return const Color(0xFFCD7F32);
+        return AppColors.bronze;
       case AchievementTier.silver:
-        return const Color(0xFFC0C0C0);
+        return AppColors.silver;
       case AchievementTier.gold:
-        return const Color(0xFFFFD700);
+        return AppColors.gold;
       case AchievementTier.platinum:
-        return const Color(0xFFE5E4E2);
+        return AppColors.platinum;
       case AchievementTier.diamond:
-        return const Color(0xFFB9F2FF);
+        return AppColors.diamond;
       case AchievementTier.legendary:
-        return const Color(0xFFFF6B35);
+        return AppColors.vibrantOrange;
     }
   }
 
@@ -233,7 +234,7 @@ class Achievement {
       'category': category.name,
       'tier': tier.name,
       'icon': icon,
-      'color': color.value,
+      'color': color.toARGB32(),
       'requirement': requirement,
       'progress': progress,
       'isUnlocked': isUnlocked,
@@ -349,7 +350,7 @@ class Badge {
       'description': description,
       'rarity': rarity.name,
       'icon': icon.codePoint,
-      'color': color.value,
+      'color': color.toARGB32(),
       'animationUrl': animationUrl,
       'criteria': criteria,
       'isLimitedTime': isLimitedTime,
@@ -422,7 +423,7 @@ class AchievementDefinitions {
       category: AchievementCategory.streak,
       tier: AchievementTier.bronze,
       icon: 'local_fire_department',
-      color: Colors.orange,
+      color: AppColors.accentCoral,
       requirement: 7,
       xpReward: 50,
     ),
@@ -433,7 +434,7 @@ class AchievementDefinitions {
       category: AchievementCategory.streak,
       tier: AchievementTier.silver,
       icon: 'local_fire_department',
-      color: Colors.orange,
+      color: AppColors.accentCoral,
       requirement: 30,
       xpReward: 200,
     ),
@@ -444,7 +445,7 @@ class AchievementDefinitions {
       category: AchievementCategory.streak,
       tier: AchievementTier.gold,
       icon: 'local_fire_department',
-      color: Colors.orange,
+      color: AppColors.accentCoral,
       requirement: 100,
       xpReward: 1000,
     ),
@@ -456,7 +457,7 @@ class AchievementDefinitions {
       category: AchievementCategory.vocabulary,
       tier: AchievementTier.bronze,
       icon: 'book',
-      color: Colors.blue,
+      color: AppColors.primaryTeal,
       requirement: 100,
       xpReward: 100,
     ),
@@ -467,7 +468,7 @@ class AchievementDefinitions {
       category: AchievementCategory.vocabulary,
       tier: AchievementTier.silver,
       icon: 'book',
-      color: Colors.blue,
+      color: AppColors.primaryTeal,
       requirement: 500,
       xpReward: 500,
     ),
@@ -479,7 +480,7 @@ class AchievementDefinitions {
       category: AchievementCategory.grammar,
       tier: AchievementTier.silver,
       icon: 'school',
-      color: Colors.purple,
+      color: AppColors.darkAccentPurple,
       requirement: 10,
       xpReward: 150,
     ),
@@ -515,9 +516,10 @@ class AchievementDefinitions {
       category: AchievementCategory.mastery,
       tier: AchievementTier.legendary,
       icon: 'emoji_events',
-      color: Colors.amber,
+      color: AppColors.accentOrange,
       requirement: 10000,
       xpReward: 5000,
     ),
   ];
 }
+

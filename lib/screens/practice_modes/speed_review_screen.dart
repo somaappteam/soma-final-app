@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
+import '../../models/vocabulary_item.dart';
+import '../../theme/app_theme.dart';
 
 /// Speed Review Mode - Fast-paced flashcard sprint
 /// Race against the clock to review as many cards as possible
 class SpeedReviewScreen extends StatefulWidget {
-  const SpeedReviewScreen({super.key});
+  final List<VocabularyItem> vocabulary;
+  final String targetLanguage;
+  final String nativeLanguage;
+
+  const SpeedReviewScreen({
+    super.key,
+    required this.vocabulary,
+    required this.targetLanguage,
+    required this.nativeLanguage,
+  });
 
   @override
   State<SpeedReviewScreen> createState() => _SpeedReviewScreenState();
@@ -27,32 +38,22 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
   final bool _isPaused = false;
   bool _showAnswer = false;
   
-  // Demo vocabulary
-  final List<Map<String, dynamic>> _vocabulary = [
-    {'word': 'Hola', 'translation': 'Hello', 'difficulty': 1},
-    {'word': 'Adiós', 'translation': 'Goodbye', 'difficulty': 1},
-    {'word': 'Gracias', 'translation': 'Thank you', 'difficulty': 1},
-    {'word': 'Por favor', 'translation': 'Please', 'difficulty': 1},
-    {'word': 'Buenos días', 'translation': 'Good morning', 'difficulty': 2},
-    {'word': 'Buenas noches', 'translation': 'Good night', 'difficulty': 2},
-    {'word': '¿Cómo estás?', 'translation': 'How are you?', 'difficulty': 2},
-    {'word': 'Estoy bien', 'translation': 'I am fine', 'difficulty': 2},
-    {'word': 'Biblioteca', 'translation': 'Library', 'difficulty': 3},
-    {'word': 'Restaurante', 'translation': 'Restaurant', 'difficulty': 3},
-  ];
-  
-  late Map<String, dynamic> _currentCard;
+  late List<VocabularyItem> _vocabulary;
+  late VocabularyItem _currentCard;
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _vocabulary = List.from(widget.vocabulary);
     _cardController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _shuffleCards();
-    _currentCard = _vocabulary[0];
+    if (_vocabulary.isNotEmpty) {
+      _shuffleCards();
+      _currentCard = _vocabulary[0];
+    }
   }
 
   @override
@@ -114,13 +115,13 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildResultStat('Score', '$_score', Icons.star, Colors.amber),
+            _buildResultStat('Score', '$_score', Icons.star, AppColors.accentOrange),
             const SizedBox(height: 16),
-            _buildResultStat('Cards', '$_cardsReviewed', Icons.style, Colors.blue),
+            _buildResultStat('Cards', '$_cardsReviewed', Icons.style, AppColors.primaryTeal),
             const SizedBox(height: 16),
-            _buildResultStat('Accuracy', '$accuracy%', Icons.check_circle, Colors.green),
+            _buildResultStat('Accuracy', '$accuracy%', Icons.check_circle, AppColors.success),
             const SizedBox(height: 16),
-            _buildResultStat('Best Streak', '$_maxStreak', Icons.local_fire_department, Colors.orange),
+            _buildResultStat('Best Streak', '$_maxStreak', Icons.local_fire_department, AppColors.accentCoral),
           ],
         ),
         actions: [
@@ -147,7 +148,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -158,7 +159,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(color: Colors.grey.shade600)),
+                Text(label, style: const TextStyle(color: AppColors.neutralDark)),
                 Text(
                   value,
                   style: TextStyle(
@@ -188,7 +189,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
         
         // Score calculation: base + streak bonus
         int points = 10 + (_streak * 2);
-        if (_currentCard['difficulty'] == 3) points += 5;
+        if (_currentCard.difficultyLevel >= 3) points += 5;
         _score += points;
       } else {
         _streak = 0;
@@ -223,12 +224,12 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
             height: 150,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Colors.orange, Colors.red],
+                colors: [AppColors.accentCoral, AppColors.error],
               ),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
+                  color: AppColors.accentCoral.withValues(alpha: 0.4),
                   blurRadius: 30,
                   spreadRadius: 10,
                 ),
@@ -253,7 +254,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
           Text(
             '60 seconds • As many cards as you can!',
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 16,
             ),
           ),
@@ -266,7 +267,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
+              backgroundColor: AppColors.accentCoral,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
               shape: RoundedRectangleBorder(
@@ -293,25 +294,25 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: _timeRemaining <= 10 
-                    ? Colors.red.withOpacity(0.2) 
+                    ? AppColors.error.withValues(alpha: 0.2) 
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(20),
                 border: _timeRemaining <= 10
-                    ? Border.all(color: Colors.red)
+                    ? Border.all(color: AppColors.error)
                     : null,
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.timer,
-                    color: _timeRemaining <= 10 ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                    color: _timeRemaining <= 10 ? AppColors.error : Theme.of(context).colorScheme.onSurface,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '$_timeRemaining',
                     style: TextStyle(
-                      color: _timeRemaining <= 10 ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                      color: _timeRemaining <= 10 ? AppColors.error : Theme.of(context).colorScheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -323,17 +324,17 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
+                  color: AppColors.accentOrange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.star, color: Colors.amber, size: 20),
+                    const Icon(Icons.star, color: AppColors.accentOrange, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       '$_score',
                       style: const TextStyle(
-                        color: Colors.amber,
+                        color: AppColors.accentOrange,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -351,16 +352,16 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  Colors.orange.shade600,
-                  Colors.red.shade600,
+                  AppColors.accentCoral,
+                  AppColors.error,
                 ],
               ),
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
+                  color: AppColors.accentCoral.withValues(alpha: 0.4),
                   blurRadius: 10,
                 ),
               ],
@@ -399,12 +400,12 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                    colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
                   ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667eea).withOpacity(0.4),
+                      color: AppColors.primaryPurple.withValues(alpha: 0.4),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -415,7 +416,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        _currentCard['word'],
+                        _currentCard.word,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 42,
@@ -434,7 +435,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            _currentCard['translation'],
+                            _currentCard.translation,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 28,
@@ -446,7 +447,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                         Text(
                           'Tap to reveal',
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             fontSize: 16,
                           ),
                         ),
@@ -471,7 +472,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                     icon: const Icon(Icons.close),
                     label: const Text('AGAIN'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                      backgroundColor: AppColors.error,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -487,7 +488,7 @@ class _SpeedReviewScreenState extends State<SpeedReviewScreen>
                     icon: const Icon(Icons.check),
                     label: const Text('KNOW IT'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(

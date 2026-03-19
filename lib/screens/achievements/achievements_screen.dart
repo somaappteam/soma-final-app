@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/achievement_models.dart';
+import '../../theme/app_theme.dart';
 
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
@@ -32,7 +33,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         icon: '🌅',
         category: AchievementCategory.general,
         tier: AchievementTier.bronze,
-        color: Colors.orange,
+        color: AppColors.accentCoral,
         requirement: 1,
         xpReward: 50,
         isUnlocked: true,
@@ -59,7 +60,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     final filteredAchievements = _getFilteredAchievements();
     
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: AppColors.lightGreyBackground,
       body: CustomScrollView(
         slivers: [
           _buildAppBar(),
@@ -134,7 +135,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+              colors: [AppColors.primaryPurple, AppColors.secondaryPurple],
             ),
           ),
           child: Stack(
@@ -147,7 +148,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -159,7 +160,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                   height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -171,13 +172,13 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.emoji_events, color: Colors.amber, size: 24),
+                          const Icon(Icons.emoji_events, color: AppColors.accentOrange, size: 24),
                           const SizedBox(width: 8),
                           Text(
                             '$_unlockedCount / $_totalCount',
@@ -211,7 +212,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
           ),
         ],
@@ -232,13 +233,13 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF667eea).withOpacity(0.1),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${(percentage * 100).toInt()}%',
                   style: const TextStyle(
-                    color: Color(0xFF667eea),
+                    color: AppColors.primaryPurple,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -250,8 +251,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: percentage,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF667eea)),
+              backgroundColor: AppColors.neutralLight,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
               minHeight: 12,
             ),
           ),
@@ -259,9 +260,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildProgressStat('Unlocked', '$_unlockedCount', Colors.green),
-              _buildProgressStat('Locked', '${_totalCount - _unlockedCount}', Colors.grey),
-              _buildProgressStat('Next Tier', '8 more', Colors.amber),
+              _buildProgressStat('Unlocked', '$_unlockedCount', AppColors.success),
+              _buildProgressStat('Locked', '${_totalCount - _unlockedCount}', AppColors.neutralMid),
+              _buildProgressStat('Next Tier', '8 more', AppColors.accentOrange),
             ],
           ),
         ],
@@ -283,9 +284,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
+            color: AppColors.neutralDark,
           ),
         ),
       ],
@@ -318,8 +319,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: (isSelected ? category.color : Colors.grey)
-                        .withOpacity(0.2),
+                    color: (isSelected ? category.color : AppColors.neutralMid)
+                        .withValues(alpha: 0.1),
                     blurRadius: 10,
                   ),
                 ],
@@ -338,7 +339,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                      color: isSelected ? Colors.white : AppColors.neutralDark,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
@@ -351,8 +352,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: isSelected 
-                          ? Colors.white.withOpacity(0.9) 
-                          : Colors.grey.shade500,
+                          ? Colors.white.withValues(alpha: 0.1) 
+                          : AppColors.neutralMid,
                     ),
                   ),
                 ],
@@ -375,8 +376,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             onSelected: (selected) {
               if (selected) setState(() => _showUnlockedOnly = false);
             },
-            selectedColor: const Color(0xFF667eea).withOpacity(0.1),
-            checkmarkColor: const Color(0xFF667eea),
+            selectedColor: AppColors.primaryPurple.withValues(alpha: 0.1),
+            checkmarkColor: AppColors.primaryPurple,
           ),
           const SizedBox(width: 8),
           FilterChip(
@@ -385,8 +386,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             onSelected: (selected) {
               setState(() => _showUnlockedOnly = selected);
             },
-            selectedColor: Colors.green.withOpacity(0.1),
-            checkmarkColor: Colors.green,
+            selectedColor: AppColors.success.withValues(alpha: 0.1),
+            checkmarkColor: AppColors.success,
           ),
         ],
       ),
@@ -400,12 +401,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       onTap: () => _showAchievementDetail(achievement),
       child: Container(
         decoration: BoxDecoration(
-          color: isUnlocked ? Colors.white : Colors.grey.shade50,
+          color: isUnlocked ? Colors.white : AppColors.neutralLight,
           borderRadius: BorderRadius.circular(20),
           boxShadow: isUnlocked
               ? [
                   BoxShadow(
-                    color: achievement.tier.color.withOpacity(0.2),
+                    color: achievement.tier.color.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -413,8 +414,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               : null,
           border: Border.all(
             color: isUnlocked 
-                ? achievement.tier.color.withOpacity(0.3)
-                : Colors.grey.shade200,
+                ? achievement.tier.color.withValues(alpha: 0.1)
+                : AppColors.neutralLight,
             width: isUnlocked ? 2 : 1,
           ),
         ),
@@ -431,12 +432,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     height: 60,
                     decoration: BoxDecoration(
                       color: isUnlocked
-                          ? achievement.tier.color.withOpacity(0.1)
-                          : Colors.grey.shade200,
+                          ? achievement.tier.color.withValues(alpha: 0.1)
+                          : AppColors.neutralLight,
                       shape: BoxShape.circle,
                       border: isUnlocked
                           ? Border.all(
-                              color: achievement.tier.color.withOpacity(0.3),
+                              color: achievement.tier.color.withValues(alpha: 0.1),
                               width: 2,
                             )
                           : null,
@@ -454,8 +455,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: isUnlocked
-                          ? achievement.tier.color.withOpacity(0.1)
-                          : Colors.grey.shade200,
+                          ? achievement.tier.color.withValues(alpha: 0.1)
+                          : AppColors.neutralLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -465,7 +466,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         fontWeight: FontWeight.bold,
                         color: isUnlocked
                             ? achievement.tier.color
-                            : Colors.grey.shade500,
+                            : AppColors.neutralMid,
                       ),
                     ),
                   ),
@@ -476,7 +477,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: isUnlocked ? Colors.black87 : Colors.grey.shade500,
+                      color: isUnlocked ? Colors.black87 : AppColors.neutralMid,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -488,8 +489,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       color: isUnlocked 
-                          ? Colors.grey.shade600 
-                          : Colors.grey.shade400,
+                          ? AppColors.neutralDark 
+                          : AppColors.neutralMid,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -499,9 +500,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                   if (!isUnlocked) ...[
                     LinearProgressIndicator(
                       value: achievement.progressPercentage,
-                      backgroundColor: Colors.grey.shade200,
+                      backgroundColor: AppColors.neutralLight,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        achievement.tier.color.withOpacity(0.5),
+                        achievement.tier.color.withValues(alpha: 0.1),
                       ),
                       minHeight: 6,
                       borderRadius: BorderRadius.circular(3),
@@ -509,22 +510,22 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       '${achievement.currentValue}/${achievement.targetValue}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 10,
-                        color: Colors.grey.shade500,
+                        color: AppColors.neutralMid,
                       ),
                     ),
                   ] else ...[
                     Row(
                       children: [
-                        Icon(Icons.star, size: 14, color: Colors.amber.shade600),
+                        const Icon(Icons.star, size: 14, color: AppColors.accentOrange),
                         const SizedBox(width: 4),
                         Text(
                           '${achievement.xpReward} XP',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade700,
+                            color: AppColors.accentOrange,
                           ),
                         ),
                       ],
@@ -535,12 +536,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             ),
             // Lock overlay for locked achievements
             if (!isUnlocked)
-              Positioned(
+              const Positioned(
                 top: 12,
                 right: 12,
                 child: Icon(
                   Icons.lock,
-                  color: Colors.grey.shade400,
+                  color: AppColors.neutralMid,
                   size: 20,
                 ),
               ),
@@ -572,7 +573,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: AppColors.neutralMid,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -590,18 +591,18 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             ? LinearGradient(
                                 colors: [
                                   achievement.tier.color,
-                                  achievement.tier.color.withOpacity(0.7),
+                                  achievement.tier.color.withValues(alpha: 0.1),
                                 ],
                               )
                             : null,
                         color: achievement.isUnlocked 
                             ? null 
-                            : Colors.grey.shade200,
+                            : AppColors.neutralLight,
                         shape: BoxShape.circle,
                         boxShadow: achievement.isUnlocked
                             ? [
                                 BoxShadow(
-                                  color: achievement.tier.color.withOpacity(0.4),
+                                  color: achievement.tier.color.withValues(alpha: 0.1),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
@@ -623,10 +624,10 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: achievement.tier.color.withOpacity(0.1),
+                        color: achievement.tier.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: achievement.tier.color.withOpacity(0.3),
+                          color: achievement.tier.color.withValues(alpha: 0.1),
                         ),
                       ),
                       child: Text(
@@ -652,9 +653,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     // Description
                     Text(
                       achievement.displayDescription,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
-                        color: Colors.grey.shade600,
+                        color: AppColors.neutralDark,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -663,14 +664,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.1),
+                        color: AppColors.accentOrange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.accentOrange.withValues(alpha: 0.1)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.star, color: Colors.amber.shade600, size: 32),
+                          const Icon(Icons.star, color: AppColors.accentOrange, size: 32),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -679,15 +680,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                 'Reward',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey,
+                                  color: AppColors.neutralMid,
                                 ),
                               ),
                               Text(
                                 '${achievement.xpReward} XP',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.amber.shade700,
+                                  color: AppColors.accentOrange,
                                 ),
                               ),
                             ],
@@ -710,7 +711,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
                           value: achievement.progressPercentage,
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: AppColors.neutralLight,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             achievement.tier.color,
                           ),
@@ -720,29 +721,29 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '${achievement.currentValue} / ${achievement.targetValue}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade600,
+                          color: AppColors.neutralDark,
                         ),
                       ),
                     ] else if (achievement.isUnlocked) ...[
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
+                          color: AppColors.success.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.success.withValues(alpha: 0.1)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle, color: Colors.green.shade600),
+                            const Icon(Icons.check_circle, color: AppColors.success),
                             const SizedBox(width: 8),
                             Text(
                               'Unlocked on ${_formatDate(achievement.unlockedAt!)}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green.shade700,
+                                color: AppColors.success,
                               ),
                             ),
                           ],
@@ -762,7 +763,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667eea),
+                    backgroundColor: AppColors.primaryPurple,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -792,3 +793,4 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
+

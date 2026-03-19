@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/mms_tts_service.dart';
+import '../theme/app_theme.dart';
 
 /// Shows a bottom sheet explaining that the device doesn't support [languageName]
 /// TTS natively, and offering to download the MMS TTS model for it.
@@ -107,12 +108,12 @@ class _MmsTtsDownloadSheetState extends State<_MmsTtsDownloadSheet> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF667eea).withValues(alpha: 0.12),
+                color: AppColors.primaryPurple.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.record_voice_over_rounded,
-                color: Color(0xFF667eea),
+                color: AppColors.primaryPurple,
                 size: 36,
               ),
             ),
@@ -159,11 +160,11 @@ class _MmsTtsDownloadSheetState extends State<_MmsTtsDownloadSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  const Icon(Icons.check_circle, color: AppColors.success, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     '${widget.languageName} voice ready!',
-                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+                    style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -215,7 +216,7 @@ class _MmsTtsDownloadSheetState extends State<_MmsTtsDownloadSheet> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      backgroundColor: const Color(0xFF667eea),
+                      backgroundColor: AppColors.primaryPurple,
                     ),
                     icon: Icon(
                       _state == _DownloadState.done
@@ -272,3 +273,4 @@ class _MmsTtsDownloadSheetState extends State<_MmsTtsDownloadSheet> {
 }
 
 enum _DownloadState { idle, downloading, done, error }
+

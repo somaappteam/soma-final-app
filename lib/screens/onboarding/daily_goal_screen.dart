@@ -28,7 +28,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
       'title': 'Casual',
       'description': '5 min/day',
       'icon': Icons.coffee,
-      'color': Colors.orange,
+      'color': AppColors.accentCoral,
       'level': 'Relaxed pace',
     },
     {
@@ -45,7 +45,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
       'title': 'Serious',
       'description': '30 min/day',
       'icon': Icons.local_fire_department,
-      'color': Colors.red,
+      'color': AppColors.error,
       'level': 'Fast progress',
     },
     {
@@ -53,7 +53,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
       'title': 'Intense',
       'description': '60 min/day',
       'icon': Icons.rocket,
-      'color': Colors.purple,
+      'color': AppColors.darkAccentPurple,
       'level': 'Maximum learning',
     },
   ];
@@ -100,7 +100,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
                       color: isSelected ? null : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? goal['color'] : Colors.grey.shade200,
+                        color: isSelected ? goal['color'] : AppColors.neutralLight,
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -203,25 +203,25 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 24),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
+              color: AppColors.primaryTeal.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.blue.withValues(alpha: 0.2),
+                color: AppColors.primaryTeal.withValues(alpha: 0.2),
               ),
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.lightbulb,
-                  color: Colors.blue.shade700,
+                  color: AppColors.primaryTeal,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'With $_selectedGoal minutes a day, you can reach conversational level in about 6 months!',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
-                      color: Colors.blue.shade700,
+                      color: AppColors.primaryTeal,
                     ),
                   ),
                 ),

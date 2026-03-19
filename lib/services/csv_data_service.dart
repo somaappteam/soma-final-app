@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:logger/logger.dart';
+import 'package:csv/csv.dart';
 import '../models/vocabulary_item.dart';
 
 class CsvDataService {
@@ -12,19 +13,31 @@ class CsvDataService {
   List<List<dynamic>>? _vocabCache;
   List<List<dynamic>>? _sentencesCache;
 
+  String _normalizeLangCode(String code) {
+    if (code.contains('-')) {
+      return code.split('-')[0].toLowerCase();
+    }
+    if (code.contains('_')) {
+      return code.split('_')[0].toLowerCase();
+    }
+    return code.toLowerCase();
+  }
+
   Future<void> _loadCsvsIfNeeded() async {
     if (_vocabCache != null && _sentencesCache != null) return;
 
     try {
-      final vocabString = await rootBundle.loadString('assets/database/vocabulary .csv');
-      _vocabCache = _parsePlainCsv(vocabString);
-      // Remove header if it looks like one
-      if (_vocabCache!.isNotEmpty && _vocabCache![0][0].toString().toLowerCase() == 'id') {
+      final vocabString = await rootBundle.loadString('assets/database/vocabulary.csv');
+      _vocabCache = const CsvDecoder().convert(vocabString);
+      if (_vocabCache!.isNotEmpty && _vocabCache![0][0].toString().toLowerCase().contains('id')) {
         _vocabCache!.removeAt(0);
       }
 
-      final sentencesString = await rootBundle.loadString('assets/database/sentences .csv');
-      _sentencesCache = _parsePlainCsv(sentencesString);
+      final sentencesString = await rootBundle.loadString('assets/database/sentences.csv');
+      _sentencesCache = const CsvDecoder().convert(sentencesString);
+      if (_sentencesCache!.isNotEmpty && _sentencesCache![0][0].toString().toLowerCase().contains('concept_id')) {
+        _sentencesCache!.removeAt(0);
+      }
     } catch (e) {
       _logger.e('Failed to load CSV files: $e');
       _vocabCache = [];
@@ -32,28 +45,14 @@ class CsvDataService {
     }
   }
 
-  List<List<dynamic>> _parsePlainCsv(String input) {
-    if (input.isEmpty) return [];
-    return input.split('\n')
-        .where((line) => line.trim().isNotEmpty)
-        .map((line) {
-          // Robust CSV line parsing (handles quotes and commas)
-          final result = <dynamic>[];
-          final regex = RegExp(r'"([^"]*)"|([^,]+)');
-          final matches = regex.allMatches(line);
-          for (final match in matches) {
-            final val = match.group(1) ?? match.group(2) ?? '';
-            result.add(val.trim());
-          }
-          return result;
-        }).toList();
-  }
+  // Removed _parsePlainCsv as we now use CsvToListConverter directly in _loadCsvsIfNeeded
 
   Future<List<String>> getConcepts(String targetLang, String nativeLang) async {
     await _loadCsvsIfNeeded();
     if (_vocabCache == null || _vocabCache!.isEmpty) return [];
 
-    final targetRows = _vocabCache!.where((row) => row.length > 3 && row[2].toString().toLowerCase() == targetLang.toLowerCase()).toList();
+    final normalizedTarget = _normalizeLangCode(targetLang);
+    final targetRows = _vocabCache!.where((row) => row.length > 2 && _normalizeLangCode(row[2].toString()) == normalizedTarget).toList();
     
     final concepts = <String>{};
     for (var row in targetRows) {
@@ -65,7 +64,6 @@ class CsvDataService {
       }
     }
     
-    // Sort concepts alphabetically, or return in original order
     final sortedConcepts = concepts.toList()..sort();
     return sortedConcepts;
   }
@@ -75,15 +73,15 @@ class CsvDataService {
 
     if (_vocabCache == null || _vocabCache!.isEmpty) return [];
 
-    // The CSV columns are: 
-    // 0: vocabulary_id, 1: concept_id, 2: lang_code, 3: word, 4: article, 5: gender, 
+    // vocabulary.csv columns:
+    // 0: vocabulary_id, 1: concept_id, 2: lang, 3: word, 4: article, 5: gender, 
     // 6: plural, 7: word_pronunciation, 8: plural_pronunciation, 9: part_of_speech, 
     // 10: category, 11: level, 12: image_id
 
-    // Get all rows for target language, optionally filtering by category
+    final normalizedTarget = _normalizeLangCode(targetLang);
     final targetRows = _vocabCache!.where((row) {
       if (row.length <= 3) return false;
-      if (row[2].toString().toLowerCase() != targetLang.toLowerCase()) return false;
+      if (_normalizeLangCode(row[2].toString()) != normalizedTarget) return false;
       
       if (category != null && category.isNotEmpty) {
         if (row.length <= 10 || row[10].toString() != category) {
@@ -93,10 +91,9 @@ class CsvDataService {
       return true;
     }).toList();
     
-    // Get all rows for native language to use as translations
-    final nativeRows = _vocabCache!.where((row) => row.length > 3 && row[2].toString().toLowerCase() == nativeLang.toLowerCase()).toList();
+    final normalizedNative = _normalizeLangCode(nativeLang);
+    final nativeRows = _vocabCache!.where((row) => row.length > 3 && _normalizeLangCode(row[2].toString()) == normalizedNative).toList();
 
-    // Map concept_id to native word
     final nativeTranslations = <String, String>{};
     for (var row in nativeRows) {
       nativeTranslations[row[1].toString()] = row[3].toString();
@@ -108,7 +105,6 @@ class CsvDataService {
       final translation = nativeTranslations[conceptId];
       
       if (translation != null && translation.isNotEmpty) {
-        // level can be A, B, C etc, convert to int for difficulty level
         final levelStr = row.length > 11 ? row[11].toString() : 'A';
         int difficultyLevel = 1;
         if (levelStr == 'B') difficultyLevel = 2;
@@ -139,13 +135,12 @@ class CsvDataService {
 
     if (_sentencesCache == null || _sentencesCache!.isEmpty) return [];
 
-    // The CSV columns are:
-    // 0: sentence_id, 1: concept_id, 2: lang_code, 3: sentence, 4: literal_translation, 5: level
+    // sentences.csv columns:
+    // 0: concept_id, 1: lang_code, 2: sentence, 3: literal_translation, 4: pronunciation, 5: level
 
     Set<String>? allowedConceptIds;
     
     if (categoryConceptIds != null && categoryConceptIds.isNotEmpty) {
-      // If we provided a category, we first need to find which concept_ids belong to this category
        if (_vocabCache != null) {
           final matchingVocab = _vocabCache!.where((row) => 
             row.length > 10 && row[10].toString() == categoryConceptIds
@@ -154,51 +149,46 @@ class CsvDataService {
        }
     }
 
-    // Get all rows for target language
+    final normalizedTarget = _normalizeLangCode(targetLang);
     final targetRows = _sentencesCache!.where((row) {
-      if (row.length <= 3) return false;
-      if (row[2].toString().toLowerCase() != targetLang.toLowerCase()) return false;
+      if (row.length <= 2) return false;
+      if (_normalizeLangCode(row[1].toString()) != normalizedTarget) return false;
       
       if (allowedConceptIds != null) {
-        if (!allowedConceptIds.contains(row[1].toString())) return false;
+        if (!allowedConceptIds.contains(row[0].toString())) return false;
       }
       return true;
     }).toList();
     
-    // Get all rows for native language to use as translations
-    final nativeRows = _sentencesCache!.where((row) => row.length > 3 && row[2].toString().toLowerCase() == nativeLang.toLowerCase()).toList();
+    final normalizedNative = _normalizeLangCode(nativeLang);
+    final nativeRows = _sentencesCache!.where((row) => row.length > 2 && _normalizeLangCode(row[1].toString()) == normalizedNative).toList();
 
-    // Map concept_id to native sentence
     final nativeTranslations = <String, String>{};
     for (var row in nativeRows) {
-      nativeTranslations[row[1].toString()] = row[3].toString();
+      nativeTranslations[row[0].toString()] = row[2].toString();
     }
 
     final results = <Map<String, dynamic>>[];
     for (var row in targetRows) {
-      final conceptId = row[1].toString();
+      final conceptId = row[0].toString();
       final translation = nativeTranslations[conceptId];
       
       if (translation != null && translation.isNotEmpty) {
-        final sentence = row[3].toString();
-        // Extract a random word to blank out for the FillInBlank/SentenceCompletion games
+        final sentence = row[2].toString();
         final words = sentence.split(' ');
-        if (words.length > 2) {
-          // Just pick a non-trivial random word (longer than 3 chars if possible) to blank out
+        if (words.length > 1) {
           final candidates = words.where((w) => w.length > 3).toList();
-          final blankWord = candidates.isNotEmpty ? candidates.first : words[1];
+          final blankWord = candidates.isNotEmpty ? candidates.first : words[0];
           final cleanBlank = blankWord.replaceAll(RegExp(r'[.,!?]'), '');
           
           final sentenceWithBlank = sentence.replaceFirst(cleanBlank, '___');
 
-          // Generate some basic options
           final options = [cleanBlank];
-          // we'd realistically need to pick other similar words, but for now just shuffle some other random target words
           for (int i=0; i<3; i++) {
-             int randomIdx = (row[0].hashCode + i) % targetRows.length;
-             final randomSentence = targetRows[randomIdx][3].toString();
+             int randomIdx = (conceptId.hashCode + i) % targetRows.length;
+             final randomSentence = targetRows[randomIdx][2].toString();
              final randomWords = randomSentence.split(' ');
-             options.add(randomWords.firstWhere((w) => w.length > 3, orElse: () => randomWords.first).replaceAll(RegExp(r'[.,!?]'), ''));
+             options.add(randomWords.firstWhere((w) => w.length > 2, orElse: () => randomWords.first).replaceAll(RegExp(r'[.,!?]'), ''));
           }
           options.shuffle();
 
@@ -206,7 +196,7 @@ class CsvDataService {
             'sentence': sentenceWithBlank,
             'blank': cleanBlank,
             'translation': translation,
-            'options': options.toSet().toList(), // Remove duplicates
+            'options': options.toSet().toList(),
             'hint': 'Complete the sentence',
             'full_sentence': sentence,
           });

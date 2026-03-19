@@ -5,9 +5,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vocabulary_item.dart';
+import '../models/sentence_item.dart';
 import '../providers/auth_provider.dart';
 import '../providers/course_provider.dart';
 import '../services/csv_data_service.dart';
+import '../services/srs_service.dart';
 import '../theme/app_theme.dart';
 import 'games/falling_words_launcher.dart';
 import 'games/word_match_game.dart';
@@ -18,6 +20,11 @@ import 'practice/listening_practice_screen.dart';
 import 'practice/speed_challenge_screen.dart';
 import 'practice/pronunciation_practice_screen.dart';
 import 'practice_modes/image_recognition_screen.dart';
+import 'practice_modes/writing_practice_screen.dart';
+import 'practice_modes/spelling_bee_screen.dart';
+import 'practice_modes/word_association_screen.dart';
+import 'practice_modes/listening_dictation_screen.dart';
+import 'practice_modes/speed_review_screen.dart';
 import 'auth/register_screen.dart';
 import 'practice/practice_session_analytics_screen.dart';
 
@@ -34,20 +41,13 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   bool _isLoading = true;
   List<VocabularyItem> _vocabulary = [];
   List<String> _concepts = [];
-  String _vocabPartOfSpeech = 'all';
-  String _vocabCategory = 'all';
-  String _vocabDifficulty = 'beginner';
+  String _partOfSpeech = 'all';
   int _vocabQuestionCount = 10;
-  String _sentenceCategory = 'all';
-  String _sentenceDifficulty = 'beginner';
   int _sentenceQuestionCount = 10;
-  String _reviewQueueFilter = 'all';
   Map<String, dynamic> _reviewStats = {};
   Map<String, dynamic> _weakFocusStats = {};
-  bool _autoDifficultyEnabled = true;
   List<Map<String, dynamic>> _sessionHistory = [];
   bool _hasAutoLaunchedInitialMode = false;
-  String? _error;
 
   @override
   void initState() {
@@ -75,6 +75,7 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
         final vocab = await csvService.getVocabulary(
           activeCourse.targetLanguage, 
           activeCourse.nativeLanguage,
+          limit: 300, // Increase limit for better SRS pool
         );
 
         await _loadSessionConfiguration(activeCourse.id, activeCourse.targetLanguage, activeCourse.nativeLanguage);
@@ -91,11 +92,12 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
         });
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _vocabulary = _getDemoVocabulary();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _vocabulary = _getDemoVocabulary();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -155,22 +157,20 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
 
 
   String _sessionConfigKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_session_config_${courseId}_$targetLanguage_$nativeLanguage';
+      'practice_session_config_simplified_${courseId}_${targetLanguage}_$nativeLanguage';
 
   String _reviewStatsKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_review_stats_${courseId}_$targetLanguage_$nativeLanguage';
+      'practice_review_stats_${courseId}_${targetLanguage}_$nativeLanguage';
 
   String _lastSessionKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_last_session_${courseId}_$targetLanguage_$nativeLanguage';
-
-  String _adaptiveStatsKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_adaptive_stats_${courseId}_$targetLanguage_$nativeLanguage';
+      'practice_last_session_${courseId}_${targetLanguage}_$nativeLanguage';
 
   String _sessionHistoryKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_session_history_${courseId}_$targetLanguage_$nativeLanguage';
+      'practice_session_history_${courseId}_${targetLanguage}_$nativeLanguage';
+
 
   String _weakFocusKey(String courseId, String targetLanguage, String nativeLanguage) =>
-      'practice_weak_focus_${courseId}_$targetLanguage_$nativeLanguage';
+      'practice_weak_focus_${courseId}_${targetLanguage}_$nativeLanguage';
 
   Future<void> _loadSessionConfiguration(String courseId, String targetLanguage, String nativeLanguage) async {
     final prefs = await SharedPreferences.getInstance();
@@ -180,11 +180,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     final rawHistory = prefs.getString(_sessionHistoryKey(courseId, targetLanguage, nativeLanguage));
     final rawWeakFocus = prefs.getString(_weakFocusKey(courseId, targetLanguage, nativeLanguage));
 
-    if (rawConfig == null && rawDefaultConfig == null && rawStats == null && rawHistory == null && rawWeakFocus == null) return;
+    if (rawConfig == null && rawStats == null && rawHistory == null && rawWeakFocus == null) return;
 
-    final config = rawConfig == null
-        ? (rawDefaultConfig == null ? <String, dynamic>{} : jsonDecode(rawDefaultConfig) as Map<String, dynamic>)
-        : jsonDecode(rawConfig) as Map<String, dynamic>;
+    final config = rawConfig == null ? <String, dynamic>{} : jsonDecode(rawConfig) as Map<String, dynamic>;
     final stats = rawStats == null ? <String, dynamic>{} : jsonDecode(rawStats) as Map<String, dynamic>;
     final history = rawHistory == null
         ? <Map<String, dynamic>>[]
@@ -192,18 +190,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     final weakFocus = rawWeakFocus == null ? <String, dynamic>{} : jsonDecode(rawWeakFocus) as Map<String, dynamic>;
 
     setState(() {
-      final vocabConfig = (config['vocabulary'] as Map?)?.cast<String, dynamic>();
-      final sentenceConfig = (config['sentences'] as Map?)?.cast<String, dynamic>();
-
-      _vocabPartOfSpeech = (config['vocabPartOfSpeech'] ?? vocabConfig?['partOfSpeech'] ?? _vocabPartOfSpeech) as String;
-      _vocabCategory = (config['vocabCategory'] ?? vocabConfig?['category'] ?? _vocabCategory) as String;
-      _vocabDifficulty = (config['vocabDifficulty'] ?? vocabConfig?['difficulty'] ?? _vocabDifficulty) as String;
-      _vocabQuestionCount = (config['vocabQuestionCount'] ?? vocabConfig?['questionCount'] ?? _vocabQuestionCount) as int;
-      _sentenceCategory = (config['sentenceCategory'] ?? sentenceConfig?['category'] ?? _sentenceCategory) as String;
-      _sentenceDifficulty = (config['sentenceDifficulty'] ?? sentenceConfig?['difficulty'] ?? _sentenceDifficulty) as String;
-      _sentenceQuestionCount = (config['sentenceQuestionCount'] ?? sentenceConfig?['questionCount'] ?? _sentenceQuestionCount) as int;
-      _reviewQueueFilter = (config['reviewQueueFilter'] ?? vocabConfig?['reviewQueue'] ?? _reviewQueueFilter) as String;
-      _autoDifficultyEnabled = (config['autoDifficultyEnabled'] ?? vocabConfig?['autoDifficultyEnabled'] ?? sentenceConfig?['autoDifficultyEnabled'] ?? _autoDifficultyEnabled) as bool;
+      _partOfSpeech = (config['partOfSpeech'] ?? _partOfSpeech) as String;
+      _vocabQuestionCount = (config['vocabQuestionCount'] ?? config['questionCount'] ?? _vocabQuestionCount) as int;
+      _sentenceQuestionCount = (config['sentenceQuestionCount'] ?? config['questionCount'] ?? _sentenceQuestionCount) as int;
       _reviewStats = stats;
       _sessionHistory = history;
       _weakFocusStats = weakFocus;
@@ -221,15 +210,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     await prefs.setString(
       _sessionConfigKey(courseId, targetLanguage, nativeLanguage),
       jsonEncode({
-        'vocabPartOfSpeech': _vocabPartOfSpeech,
-        'vocabCategory': _vocabCategory,
-        'vocabDifficulty': _vocabDifficulty,
+        'partOfSpeech': _partOfSpeech,
         'vocabQuestionCount': _vocabQuestionCount,
-        'sentenceCategory': _sentenceCategory,
-        'sentenceDifficulty': _sentenceDifficulty,
         'sentenceQuestionCount': _sentenceQuestionCount,
-        'reviewQueueFilter': _reviewQueueFilter,
-        'autoDifficultyEnabled': _autoDifficultyEnabled,
       }),
     );
   }
@@ -285,10 +268,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     if (_hasAutoLaunchedInitialMode || widget.initialMode == null || _isLoading) return;
     _hasAutoLaunchedInitialMode = true;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _launchModeByName(context, widget.initialMode!);
-    });
+    // Instead of auto-launching or showing a snackbar, the UI will 
+    // selectively show a prominent "Start [Mode]" button at the top
+    // of the configuration section.
   }
 
   Future<void> _launchModeByName(BuildContext context, String modeName) async {
@@ -323,6 +305,21 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       case 'pronunciation practice':
         await _launchPronunciation(context);
         break;
+      case 'spelling bee':
+        await _launchSpellingBee(context);
+        break;
+      case 'word association':
+        await _launchWordAssociation(context);
+        break;
+      case 'listening dictation':
+        await _launchListeningDictation(context);
+        break;
+      case 'speed review':
+        await _launchSpeedReview(context);
+        break;
+      case 'writing practice':
+        await _launchWritingPractice(context);
+        break;
       default:
         break;
     }
@@ -345,13 +342,11 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Last 7 Sessions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text('Last 7 Sessions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           const SizedBox(height: 10),
           ...recent.map((entry) {
             final mode = entry['mode']?.toString() ?? 'Practice';
-            final difficulty = entry['difficulty']?.toString() ?? 'beginner';
             final duration = (entry['durationSeconds'] ?? 0) as int;
-            final movedTo = entry['adaptiveMovedTo']?.toString();
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -360,7 +355,7 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '$mode • ${_capitalize(difficulty)} • ${duration}s${movedTo != null ? ' • → ${_capitalize(movedTo)}' : ''}',
+                      '$mode • ${duration}s',
                       style: const TextStyle(color: AppColors.textMedium, fontSize: 12),
                     ),
                   ),
@@ -375,12 +370,11 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
 
 
   Future<void> _startDueReviewSession(BuildContext context) async {
-    _updateSessionConfig(() => _reviewQueueFilter = 'due');
     final dueCount = _reviewQueueCount('due');
     if (dueCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No due review items right now. Try New or All.'),
+          content: Text('No due review items right now.'),
           backgroundColor: AppColors.primaryTeal,
         ),
       );
@@ -390,77 +384,6 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     await _launchVocabularyQuiz(context);
   }
 
-  String _nextDifficulty(String current, bool increase) {
-    const levels = ['beginner', 'intermediate', 'advanced'];
-    final index = levels.indexOf(current);
-    if (index == -1) return current;
-    if (increase && index < levels.length - 1) return levels[index + 1];
-    if (!increase && index > 0) return levels[index - 1];
-    return current;
-  }
-
-  Future<String?> _applyAdaptiveDifficultyTuning({
-    required SharedPreferences prefs,
-    required String courseId,
-    required String targetLanguage,
-    required String nativeLanguage,
-    required bool isVocabulary,
-    required double estimatedAccuracy,
-    required double avgResponseSeconds,
-  }) async {
-    final key = _adaptiveStatsKey(courseId, targetLanguage, nativeLanguage);
-    final raw = prefs.getString(key);
-    final stats = raw == null ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
-    final bucketKey = isVocabulary ? 'vocabulary' : 'sentences';
-    final bucket = (stats[bucketKey] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-
-    final sessions = (bucket['sessions'] ?? 0) as int;
-    final totalAccuracy = ((bucket['totalAccuracy'] ?? 0) as num).toDouble();
-    final totalResponse = ((bucket['totalResponse'] ?? 0) as num).toDouble();
-    final updatedSessions = sessions + 1;
-    final updatedAccuracy = totalAccuracy + estimatedAccuracy;
-    final updatedResponse = totalResponse + avgResponseSeconds;
-    final rollingAccuracy = updatedAccuracy / updatedSessions;
-    final rollingResponse = updatedResponse / updatedSessions;
-
-    String currentDifficulty = isVocabulary ? _vocabDifficulty : _sentenceDifficulty;
-    String tunedDifficulty = currentDifficulty;
-
-    final canIncrease = rollingAccuracy >= 0.88 && rollingResponse <= 5.0 && updatedSessions >= 3;
-    final shouldDecrease = rollingAccuracy <= 0.68 || rollingResponse >= 10.0;
-
-    if (canIncrease) {
-      tunedDifficulty = _nextDifficulty(currentDifficulty, true);
-    } else if (shouldDecrease) {
-      tunedDifficulty = _nextDifficulty(currentDifficulty, false);
-    }
-
-    bucket['sessions'] = updatedSessions;
-    bucket['totalAccuracy'] = updatedAccuracy;
-    bucket['totalResponse'] = updatedResponse;
-    bucket['rollingAccuracy'] = rollingAccuracy;
-    bucket['rollingResponse'] = rollingResponse;
-    bucket['difficulty'] = tunedDifficulty;
-    stats[bucketKey] = bucket;
-
-    await prefs.setString(key, jsonEncode(stats));
-
-    if (tunedDifficulty != currentDifficulty) {
-      if (mounted) {
-        setState(() {
-          if (isVocabulary) {
-            _vocabDifficulty = tunedDifficulty;
-          } else {
-            _sentenceDifficulty = tunedDifficulty;
-          }
-        });
-      }
-      await _persistSessionConfiguration();
-      return tunedDifficulty;
-    }
-
-    return null;
-  }
 
   Future<void> _recordSessionCompletion({
     required String mode,
@@ -485,7 +408,6 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       jsonEncode({
         'mode': mode,
         'isVocabulary': isVocabulary,
-        'difficulty': isVocabulary ? _vocabDifficulty : _sentenceDifficulty,
         'accuracy': actualAccuracy,
         'count': totalItems,
         'completedAt': now.toIso8601String(),
@@ -494,26 +416,40 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     );
 
     if (vocabulary.isNotEmpty) {
+      final srsService = SrsService();
+      
+      // If the quiz provided granular performance data, use it.
+      // Format expected: {'wordId1': true, 'wordId2': false, ...}
+      final Map<String, dynamic>? wordPerformance = 
+          (quizResult is Map && quizResult.containsKey('wordPerformance'))
+              ? quizResult['wordPerformance'] as Map<String, dynamic>
+              : null;
+
+      for (final item in vocabulary) {
+        // If we have specific results for this word, use them. 
+        // Otherwise fallback to the overall session success.
+        final bool isCorrect = wordPerformance?[item.id] ?? (actualAccuracy != null && actualAccuracy >= 0.7);
+        
+        await srsService.updateSrsState(
+          courseId, 
+          item.id, 
+          SrsService.fromCorrect(isCorrect),
+        );
+      }
+      
+      // Also update the UI's local stats for the queue counters
       final key = _reviewStatsKey(courseId, targetLanguage, nativeLanguage);
       final rawStats = prefs.getString(key);
       final stats = rawStats == null ? <String, dynamic>{} : jsonDecode(rawStats) as Map<String, dynamic>;
 
-      final reviewDays = switch (_vocabDifficulty) {
-        'beginner' => 1,
-        'intermediate' => 3,
-        'advanced' => 7,
-        _ => 2,
-      };
-
       for (final item in vocabulary) {
         final itemStats = (stats[item.id] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-        final reviewCount = (itemStats['reviewCount'] ?? 0) as int;
-        itemStats['reviewCount'] = reviewCount + 1;
+        itemStats['reviewCount'] = (itemStats['reviewCount'] ?? 0) + 1;
         itemStats['lastReviewedAt'] = now.toIso8601String();
-        itemStats['nextReviewAt'] = now.add(Duration(days: reviewDays)).toIso8601String();
+        // Note: nextReviewAt is now managed by SrsService, but we keep this for UI counters 
+        // until they are fully migrated to check SrsService directly.
         stats[item.id] = itemStats;
       }
-
       await prefs.setString(key, jsonEncode(stats));
       if (mounted) {
         setState(() => _reviewStats = stats);
@@ -530,13 +466,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       final isWeakRun = mode.toLowerCase().contains('weak');
       final delta = isWeakRun ? (actualAccuracy < 0.75 ? 2.0 : -1.0) : (actualAccuracy < 0.7 ? 1.0 : -0.5);
 
-      if (_vocabPartOfSpeech != 'all') {
-        final current = (posMap[_vocabPartOfSpeech] as num?)?.toDouble() ?? 0;
-        posMap[_vocabPartOfSpeech] = (current + delta).clamp(0, 20).toDouble();
-      }
-      if (_vocabCategory != 'all') {
-        final current = (categoryMap[_vocabCategory] as num?)?.toDouble() ?? 0;
-        categoryMap[_vocabCategory] = (current + delta).clamp(0, 20).toDouble();
+      if (_partOfSpeech != 'all') {
+        final current = (posMap[_partOfSpeech] as num?)?.toDouble() ?? 0;
+        posMap[_partOfSpeech] = (current + delta).clamp(0, 20).toDouble();
       }
 
       if (quizResult is Map && quizResult['weakAreas'] is List) {
@@ -567,40 +499,6 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       }
     }
 
-    String? tunedDifficulty;
-    String adaptiveReason = _autoDifficultyEnabled
-        ? 'Auto difficulty tracks your real quiz accuracy and response speed over recent sessions.'
-        : 'Auto difficulty is currently off.';
-
-    if (_autoDifficultyEnabled && actualAccuracy != null) {
-      tunedDifficulty = await _applyAdaptiveDifficultyTuning(
-        prefs: prefs,
-        courseId: courseId,
-        targetLanguage: targetLanguage,
-        nativeLanguage: nativeLanguage,
-        isVocabulary: isVocabulary,
-        estimatedAccuracy: actualAccuracy,
-        avgResponseSeconds: avgResponseSeconds,
-      );
-
-      if (tunedDifficulty != null) {
-        adaptiveReason = 'Difficulty changed after strong/weak recent performance trend (${(actualAccuracy * 100).toStringAsFixed(0)}% this session, ${avgResponseSeconds.toStringAsFixed(1)}s avg).';
-      } else {
-        adaptiveReason = 'No difficulty change: performance trend stayed within current level thresholds.';
-      }
-
-      if (mounted && tunedDifficulty != null) {
-        final trackName = isVocabulary ? 'Vocabulary' : 'Sentence';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Adaptive difficulty updated: $trackName is now ${_capitalize(tunedDifficulty)}.'),
-            backgroundColor: AppColors.primaryTeal,
-          ),
-        );
-      }
-    } else if (_autoDifficultyEnabled && actualAccuracy == null) {
-      adaptiveReason = 'No verified score returned by this quiz yet, so difficulty was kept unchanged.';
-    }
 
     final historyKey = _sessionHistoryKey(courseId, targetLanguage, nativeLanguage);
     final currentHistoryRaw = prefs.getString(historyKey);
@@ -611,11 +509,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
             .toList();
     history.insert(0, {
       'mode': mode,
-      'difficulty': isVocabulary ? _vocabDifficulty : _sentenceDifficulty,
       'durationSeconds': duration.inSeconds,
       'timestamp': now.toIso8601String(),
       'accuracy': actualAccuracy,
-      if (tunedDifficulty != null) 'adaptiveMovedTo': tunedDifficulty,
     });
     final trimmed = history.take(7).toList();
     await prefs.setString(historyKey, jsonEncode(trimmed));
@@ -633,12 +529,11 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
           averageResponseSeconds: avgResponseSeconds,
           duration: duration,
           weakAreas: [
-            if (isVocabulary) 'Difficulty: $_vocabDifficulty',
-            if (!isVocabulary) 'Difficulty: $_sentenceDifficulty',
-            if (!isVocabulary) 'Sentence category: $_sentenceCategory',
+            'Questions: ${isVocabulary ? _vocabQuestionCount : _sentenceQuestionCount}',
+            if (isVocabulary && _partOfSpeech != 'all') 'Filter: $_partOfSpeech',
           ],
           recommendedNextMode: isVocabulary ? 'Fill in the Blank' : 'Vocabulary Quiz',
-          adaptiveReason: adaptiveReason,
+          adaptiveReason: 'Session completed with ${(actualAccuracy ?? 0 * 100).toStringAsFixed(0)}% accuracy.',
         ),
       ),
     );
@@ -653,18 +548,18 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     _maybeLaunchInitialMode();
 
     return Scaffold(
-      backgroundColor: AppColors.cream,
+      backgroundColor: AppColors.accentCoral,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Practice Modes',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -680,15 +575,16 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
                   SliverToBoxAdapter(
                     child: _buildGuestBanner(context),
                   ),
+                if (widget.initialMode != null && activeCourse != null)
+                  SliverToBoxAdapter(
+                    child: _buildInitialModeBanner(context, widget.initialMode!),
+                  ),
                 if (activeCourse != null)
                   SliverToBoxAdapter(
                     child: _buildPracticeConfigurationSection(),
                   ),
                 SliverToBoxAdapter(
                   child: _buildSessionHistoryTimeline(),
-                ),
-                SliverToBoxAdapter(
-                  child: _buildPracticeModesList(context, isGuest),
                 ),
               ],
             ),
@@ -713,9 +609,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Choose Your Practice',
-            style: TextStyle(
+          Text(
+            widget.initialMode != null ? 'Configure Session' : 'Practice Modes',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -723,7 +619,7 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${_vocabulary.length} words available',
+            widget.initialMode != null ? 'Set your preferences for ${widget.initialMode}' : '${_vocabulary.length} words available',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.8),
               fontSize: 16,
@@ -734,13 +630,67 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     ).animate().fadeIn().slideY();
   }
 
+  Widget _buildInitialModeBanner(BuildContext context, String modeName) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryTeal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.3), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.flash_on, color: AppColors.primaryTeal),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Launch $modeName',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Check your session settings below, then tap start to jump right in!',
+            style: TextStyle(color: AppColors.textMedium, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _launchModeByName(context, modeName),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.play_arrow),
+              label: Text('START ${modeName.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn().slideY();
+  }
+
   Widget _buildGuestBanner(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.accentCoral, AppColors.accentOrange],
+        gradient: LinearGradient(
+          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -794,77 +744,32 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Session Configuration',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           const Text(
             'Set defaults for vocabulary and sentence quizzes',
-            style: TextStyle(color: AppColors.textMedium),
           ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _autoDifficultyEnabled,
-            onChanged: (value) => _updateSessionConfig(() => _autoDifficultyEnabled = value),
-            title: const Text('Auto Difficulty', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-            subtitle: const Text('Automatically tune difficulty based on real quiz performance'),
-            activeColor: AppColors.primaryTeal,
-          ),
-          const SizedBox(height: 8),
           _buildConfigBlock(
-            title: 'Vocabulary',
+            title: 'Vocabulary Quiz Defaults',
             icon: Icons.library_books,
             children: [
               _buildChipSelector(
                 label: 'Part of Speech',
-                value: _vocabPartOfSpeech,
+                value: _partOfSpeech,
                 options: ['all', ..._extractPartOfSpeechOptions()],
-                onChanged: (value) => _updateSessionConfig(() => _vocabPartOfSpeech = value),
-              ),
-              _buildChipSelector(
-                label: 'Category',
-                value: _vocabCategory,
-                options: ['all', ..._concepts],
-                onChanged: (value) => _updateSessionConfig(() => _vocabCategory = value),
-              ),
-              _buildChipSelector(
-                label: 'Difficulty',
-                value: _vocabDifficulty,
-                options: const ['beginner', 'intermediate', 'advanced'],
-                onChanged: (value) => _updateSessionConfig(() => _vocabDifficulty = value),
-              ),
-              _buildChipSelector(
-                label: 'Review Queue',
-                value: _reviewQueueFilter,
-                options: const ['all', 'due', 'overdue', 'new'],
-                optionLabel: (option) {
-                  final label = option == 'all' ? 'All' : _capitalize(option);
-                  return '$label (${_reviewQueueCount(option)})';
-                },
-                onChanged: (value) => _updateSessionConfig(() => _reviewQueueFilter = value),
+                onChanged: (value) => _updateSessionConfig(() => _partOfSpeech = value),
               ),
               _buildCountSelector(
+                label: 'Questions per session',
                 value: _vocabQuestionCount,
                 onChanged: (value) => _updateSessionConfig(() => _vocabQuestionCount = value),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _startDueReviewSession(context),
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: Text('Start Due Review Now (${_reviewQueueCount('due')})'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryTeal,
-                    side: BorderSide(color: AppColors.primaryTeal.withValues(alpha: 0.35)),
-                  ),
-                ),
               ),
               const SizedBox(height: 6),
               SizedBox(
@@ -874,31 +779,20 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
                   icon: const Icon(Icons.psychology_alt_outlined),
                   label: const Text('Weak Areas Only Quiz'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.accentOrange,
-                    side: BorderSide(color: AppColors.accentOrange.withValues(alpha: 0.45)),
+                    foregroundColor: Theme.of(context).colorScheme.secondary,
+                    side: BorderSide(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.45)),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildConfigBlock(
-            title: 'Sentences',
-            icon: Icons.notes,
+            title: 'Sentence Quiz Defaults',
+            icon: Icons.short_text,
             children: [
-              _buildChipSelector(
-                label: 'Category',
-                value: _sentenceCategory,
-                options: ['all', ..._concepts],
-                onChanged: (value) => _updateSessionConfig(() => _sentenceCategory = value),
-              ),
-              _buildChipSelector(
-                label: 'Difficulty',
-                value: _sentenceDifficulty,
-                options: const ['beginner', 'intermediate', 'advanced'],
-                onChanged: (value) => _updateSessionConfig(() => _sentenceDifficulty = value),
-              ),
               _buildCountSelector(
+                label: 'Questions per session',
                 value: _sentenceQuestionCount,
                 onChanged: (value) => _updateSessionConfig(() => _sentenceQuestionCount = value),
               ),
@@ -914,6 +808,7 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     required IconData icon,
     required List<Widget> children,
   }) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -930,9 +825,9 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ],
@@ -988,7 +883,7 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected ? AppColors.primaryTeal : Colors.grey.shade300,
+                    color: isSelected ? AppColors.primaryTeal : AppColors.neutralMid,
                   ),
                 ),
               );
@@ -1000,12 +895,13 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Widget _buildCountSelector({
+    required String label,
     required int value,
     required ValueChanged<int> onChanged,
   }) {
     const counts = [10, 20, 50, -1];
     return _buildChipSelector(
-      label: 'Questions per session',
+      label: label,
       value: value.toString(),
       options: counts.map((e) => e.toString()).toList(),
       onChanged: (selected) => onChanged(int.parse(selected)),
@@ -1032,8 +928,8 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
 
-  List<VocabularyItem> _weakFocusedVocabularyForSession() {
-    final filtered = _filteredVocabularyForSession();
+  Future<List<VocabularyItem>> _weakFocusedVocabularyForSession() async {
+    final filtered = await _filteredVocabularyForSession();
     if (filtered.isEmpty) return filtered;
 
     final weakPosMap = (_weakFocusStats['partOfSpeech'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
@@ -1086,13 +982,19 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _startWeakAreasSession(BuildContext context) async {
-    final activeCourse = context.read<CourseProvider>().activeCourse;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final courseProvider = context.read<CourseProvider>();
+    final activeCourse = courseProvider.activeCourse;
     final targetLanguage = activeCourse?.targetLanguage ?? 'es';
     final nativeLanguage = activeCourse?.nativeLanguage ?? 'en';
 
-    final weakSession = _weakFocusedVocabularyForSession();
+    final weakSession = await _weakFocusedVocabularyForSession();
+    
+    if (!mounted) return;
+
     if (weakSession.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('No weak-area signals yet. Complete a few sessions first.'),
           backgroundColor: AppColors.primaryTeal,
@@ -1102,13 +1004,13 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     }
 
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(
-      context,
+    final result = await navigator.push(
       MaterialPageRoute(
         builder: (context) => VocabularyQuizScreen(
           vocabulary: weakSession,
           targetLanguage: targetLanguage,
           nativeLanguage: nativeLanguage,
+          courseId: activeCourse?.id ?? 'demo',
         ),
       ),
     );
@@ -1125,83 +1027,31 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     );
   }
 
-  List<VocabularyItem> _filteredVocabularyForSession() {
-    var filtered = List<VocabularyItem>.from(_vocabulary);
+  Future<List<VocabularyItem>> _filteredVocabularyForSession() async {
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null || _vocabulary.isEmpty) return [];
 
-    if (_vocabPartOfSpeech != 'all') {
-      filtered = filtered.where((item) => (item.partOfSpeech ?? '').toLowerCase() == _vocabPartOfSpeech).toList();
+    final srsService = SrsService();
+    
+    // Filter by part of speech if selected
+    var pool = _vocabulary;
+    if (_partOfSpeech != 'all') {
+      pool = pool.where((item) => (item.partOfSpeech ?? '').toLowerCase() == _partOfSpeech.toLowerCase()).toList();
     }
 
-    if (_vocabCategory != 'all') {
-      filtered = filtered.where((item) {
-        final category = (item.category ?? '').toLowerCase();
-        return category == _vocabCategory.toLowerCase() ||
-            item.tags.map((tag) => tag.toLowerCase()).contains(_vocabCategory.toLowerCase());
-      }).toList();
-    }
+    if (pool.isEmpty) pool = _vocabulary;
 
-    filtered = filtered.where((item) {
-      switch (_vocabDifficulty) {
-        case 'beginner':
-          return item.difficultyLevel <= 2;
-        case 'intermediate':
-          return item.difficultyLevel >= 3 && item.difficultyLevel <= 4;
-        case 'advanced':
-          return item.difficultyLevel >= 5;
-        default:
-          return true;
-      }
-    }).toList();
-
-    final now = DateTime.now();
-    if (_reviewQueueFilter != 'all') {
-      filtered = filtered.where((item) {
-        final stats = (_reviewStats[item.id] as Map?)?.cast<String, dynamic>();
-        final reviewCount = (stats?['reviewCount'] ?? 0) as int;
-        final nextReviewAtRaw = stats?['nextReviewAt'] as String?;
-        final nextReviewAt = nextReviewAtRaw == null ? null : DateTime.tryParse(nextReviewAtRaw);
-
-        switch (_reviewQueueFilter) {
-          case 'new':
-            return reviewCount == 0;
-          case 'due':
-            return nextReviewAt != null && !nextReviewAt.isAfter(now);
-          case 'overdue':
-            return nextReviewAt != null && nextReviewAt.isBefore(now.subtract(const Duration(days: 1)));
-          default:
-            return true;
-        }
-      }).toList();
-    }
-
-    if (filtered.isEmpty) {
-      filtered = List<VocabularyItem>.from(_vocabulary);
-    }
-
-    if (_vocabQuestionCount != -1 && filtered.length > _vocabQuestionCount) {
-      filtered = filtered.sublist(0, _vocabQuestionCount);
-    }
-
-    return filtered;
+    // Use SRS to select the most relevant words
+    final count = _vocabQuestionCount == -1 ? 10 : _vocabQuestionCount;
+    return await srsService.selectSessionWords(
+      courseId: activeCourse.id,
+      allVocab: pool,
+      count: count,
+    );
   }
 
   List<Map<String, dynamic>> _filteredSentencesForSession(List<Map<String, dynamic>> sentences) {
     var filtered = List<Map<String, dynamic>>.from(sentences);
-
-    filtered = filtered.where((sentence) {
-      final rawDifficulty = (sentence['difficulty'] ?? sentence['difficulty_level'] ?? sentence['level'] ?? 'beginner').toString().toLowerCase();
-
-      switch (_sentenceDifficulty) {
-        case 'beginner':
-          return rawDifficulty.contains('beginner') || rawDifficulty.contains('a1') || rawDifficulty.contains('a2') || rawDifficulty == '1' || rawDifficulty == '2';
-        case 'intermediate':
-          return rawDifficulty.contains('intermediate') || rawDifficulty.contains('b1') || rawDifficulty.contains('b2') || rawDifficulty == '3' || rawDifficulty == '4';
-        case 'advanced':
-          return rawDifficulty.contains('advanced') || rawDifficulty.contains('c1') || rawDifficulty.contains('c2') || rawDifficulty == '5';
-        default:
-          return true;
-      }
-    }).toList();
 
     if (_sentenceQuestionCount != -1 && filtered.length > _sentenceQuestionCount) {
       filtered = filtered.sublist(0, _sentenceQuestionCount);
@@ -1214,233 +1064,27 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     return filtered;
   }
 
-  Widget _buildPracticeModesList(BuildContext context, bool isGuest) {
-    final modes = [
-      {
-        'name': 'Falling Words',
-        'description': 'Catch falling words and match translations',
-        'icon': Icons.arrow_downward,
-        'color': Colors.purple,
-        'available': true,
-        'isNew': true,
-        'onTap': () { _launchFallingWords(context); },
-      },
-      {
-        'name': 'Word Match',
-        'description': 'Match words with their translations',
-        'icon': Icons.compare_arrows,
-        'color': Colors.teal,
-        'available': true,
-        'isNew': true,
-        'onTap': () { _launchWordMatch(context); },
-      },
-      {
-        'name': 'Vocabulary Quiz',
-        'description': 'Test your knowledge with multiple choice',
-        'icon': Icons.quiz,
-        'color': AppColors.primaryTeal,
-        'available': true,
-        'isNew': false,
-        'onTap': () { _launchVocabularyQuiz(context); },
-      },
-      {
-        'name': 'Weak Areas Quiz',
-        'description': 'Focus on low-confidence parts of speech and categories',
-        'icon': Icons.psychology_alt,
-        'color': AppColors.accentOrange,
-        'available': true,
-        'isNew': true,
-        'onTap': () { _startWeakAreasSession(context); },
-      },
-      {
-        'name': 'Picture Quiz',
-        'description': 'Identify vocabulary from picture clues',
-        'icon': Icons.image,
-        'color': Colors.pink,
-        'available': true,
-        'isNew': true,
-        'onTap': () { _launchPictureQuiz(context); },
-      },
-      {
-        'name': 'Flashcards',
-        'description': 'Review words with flashcards',
-        'icon': Icons.style,
-        'color': Colors.orange,
-        'available': !isGuest,
-        'isNew': false,
-        'onTap': isGuest ? () => _showGuestRestriction(context) : () { _launchFlashcards(context); },
-      },
-      {
-        'name': 'Fill in Blank',
-        'description': 'Complete sentences with missing words',
-        'icon': Icons.edit_note,
-        'color': Colors.indigo,
-        'available': !isGuest,
-        'isNew': false,
-        'onTap': isGuest ? () => _showGuestRestriction(context) : () { _launchFillInBlank(context); },
-      },
-      {
-        'name': 'Listening Practice',
-        'description': 'Listen and type what you hear',
-        'icon': Icons.hearing,
-        'color': AppColors.accentOrange,
-        'available': !isGuest,
-        'isNew': false,
-        'onTap': isGuest ? () => _showGuestRestriction(context) : () { _launchListeningPractice(context); },
-      },
-      {
-        'name': 'Pronunciation',
-        'description': 'Practice speaking with AI feedback',
-        'icon': Icons.mic,
-        'color': Colors.blue,
-        'available': !isGuest,
-        'isNew': false,
-        'onTap': isGuest ? () => _showGuestRestriction(context) : () { _launchPronunciation(context); },
-      },
-      {
-        'name': 'Speed Challenge',
-        'description': 'Race against time to answer questions',
-        'icon': Icons.speed,
-        'color': Colors.red,
-        'available': !isGuest,
-        'isNew': false,
-        'onTap': isGuest ? () => _showGuestRestriction(context) : () { _launchSpeedChallenge(context); },
-      },
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: modes.map((mode) {
-          final index = modes.indexOf(mode);
-          return _buildModeCard(mode, index);
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildModeCard(Map<String, dynamic> mode, int index) {
-    final isAvailable = mode['available'] as bool;
-    final isNew = mode['isNew'] as bool;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AnimatedCard(
-        delayMs: index * 100,
-        onTap: isAvailable ? mode['onTap'] as VoidCallback? : null,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isAvailable ? Colors.white : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isAvailable 
-                  ? (mode['color'] as Color).withValues(alpha: 0.3)
-                  : Colors.grey.shade300,
-              width: 2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isAvailable
-                      ? (mode['color'] as Color).withValues(alpha: 0.1)
-                      : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  mode['icon'] as IconData,
-                  color: isAvailable ? mode['color'] as Color : Colors.grey,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          mode['name'] as String,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isAvailable 
-                                ? AppColors.textDark 
-                                : Colors.grey,
-                          ),
-                        ),
-                        if (isNew) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'NEW',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      mode['description'] as String,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isAvailable 
-                            ? AppColors.textMedium 
-                            : Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isAvailable)
-                const Icon(
-                  Icons.lock,
-                  color: Colors.grey,
-                )
-              else
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: mode['color'] as Color,
-                  size: 20,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _launchFallingWords(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final courseProvider = context.read<CourseProvider>();
+    final activeCourse = courseProvider.activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
 
     if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
       );
       return;
     }
-    final activeCourse = context.read<CourseProvider>().activeCourse;
-    if (activeCourse == null) return;
 
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => FallingWordsLauncher(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
@@ -1452,19 +1096,25 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchWordMatch(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final courseProvider = context.read<CourseProvider>();
+    final activeCourse = courseProvider.activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
 
     if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
       );
       return;
     }
-    final activeCourse = context.read<CourseProvider>().activeCourse;
-    if (activeCourse == null) return;
 
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => WordMatchLauncher(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
@@ -1476,23 +1126,30 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchVocabularyQuiz(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final courseProvider = context.read<CourseProvider>();
+    final activeCourse = courseProvider.activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
 
     if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
       );
       return;
     }
-    final activeCourse = context.read<CourseProvider>().activeCourse;
-    if (activeCourse == null) return;
 
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => VocabularyQuizScreen(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
         nativeLanguage: activeCourse.nativeLanguage,
+        courseId: activeCourse.id,
       ),
     ));
     stopwatch.stop();
@@ -1500,23 +1157,30 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchFlashcards(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final courseProvider = context.read<CourseProvider>();
+    final activeCourse = courseProvider.activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
 
     if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
       );
       return;
     }
-    final activeCourse = context.read<CourseProvider>().activeCourse;
-    if (activeCourse == null) return;
 
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => FlashcardsScreen(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
         nativeLanguage: activeCourse.nativeLanguage,
+        courseId: activeCourse.id,
       ),
     ));
     stopwatch.stop();
@@ -1524,23 +1188,26 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchPictureQuiz(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
 
     if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Need at least 4 vocabulary words to play'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.accentCoral,
         ),
       );
       return;
     }
 
-    final activeCourse = context.read<CourseProvider>().activeCourse;
-
     final stopwatch = Stopwatch()..start();
-    await Navigator.push(
-      context,
+    final result = await navigator.push(
       MaterialPageRoute(
         builder: (context) => ImageRecognitionScreen.withVocabulary(
           vocabulary: vocabularyForSession,
@@ -1554,6 +1221,8 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchFillInBlank(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final activeCourse = context.read<CourseProvider>().activeCourse;
     if (activeCourse == null) return;
 
@@ -1563,54 +1232,56 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
     final sentences = await csvService.getSentences(
       activeCourse.targetLanguage,
       activeCourse.nativeLanguage,
-      categoryConceptIds: _sentenceCategory == 'all' ? null : _sentenceCategory,
     );
 
+    if (!mounted) return;
     setState(() { _isLoading = false; });
 
     final filteredSentences = _filteredSentencesForSession(sentences);
 
     if (filteredSentences.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No sentences available for Fill in Blank'), backgroundColor: Colors.orange),
-        );
-      }
-      return;
-    }
-
-    if (context.mounted) {
-      final stopwatch = Stopwatch()..start();
-      final result = await Navigator.push(context, MaterialPageRoute(
-        builder: (context) => FillInBlankScreen(
-          sentences: filteredSentences,
-          targetLanguage: activeCourse.targetLanguage,
-          nativeLanguage: activeCourse.nativeLanguage,
-        ),
-      ));
-      stopwatch.stop();
-      await _recordSessionCompletion(mode: 'Fill in the Blank', isVocabulary: false, totalItems: filteredSentences.length, duration: stopwatch.elapsed, quizResult: result);
-    }
-  }
-
-  Future<void> _launchListeningPractice(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
-
-    if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No sentences available for Fill in Blank'), backgroundColor: AppColors.accentCoral),
       );
       return;
     }
+
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(MaterialPageRoute(
+      builder: (context) => FillInBlankScreen(
+        sentences: filteredSentences,
+        targetLanguage: activeCourse.targetLanguage,
+        nativeLanguage: activeCourse.nativeLanguage,
+      ),
+    ));
+    stopwatch.stop();
+    await _recordSessionCompletion(mode: 'Fill in the Blank', isVocabulary: false, totalItems: filteredSentences.length, duration: stopwatch.elapsed, quizResult: result);
+  }
+
+  Future<void> _launchListeningPractice(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final activeCourse = context.read<CourseProvider>().activeCourse;
     if (activeCourse == null) return;
 
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => ListeningPracticeScreen(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
         nativeLanguage: activeCourse.nativeLanguage,
+        courseId: activeCourse.id,
       ),
     ));
     stopwatch.stop();
@@ -1618,23 +1289,29 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchSpeedChallenge(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
-
-    if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
-      );
-      return;
-    }
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final activeCourse = context.read<CourseProvider>().activeCourse;
     if (activeCourse == null) return;
 
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => SpeedChallengeScreen(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
         nativeLanguage: activeCourse.nativeLanguage,
+        courseId: activeCourse.id,
       ),
     ));
     stopwatch.stop();
@@ -1642,23 +1319,29 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
   }
 
   Future<void> _launchPronunciation(BuildContext context) async {
-    final vocabularyForSession = _filteredVocabularyForSession();
-
-    if (vocabularyForSession.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: Colors.orange,),
-      );
-      return;
-    }
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final activeCourse = context.read<CourseProvider>().activeCourse;
     if (activeCourse == null) return;
 
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
     final stopwatch = Stopwatch()..start();
-    final result = await Navigator.push(context, MaterialPageRoute(
+    final result = await navigator.push(MaterialPageRoute(
       builder: (context) => PronunciationPracticeScreen(
         vocabulary: vocabularyForSession,
         targetLanguage: activeCourse.targetLanguage,
         nativeLanguage: activeCourse.nativeLanguage,
+        courseId: activeCourse.id,
       ),
     ));
     stopwatch.stop();
@@ -1693,6 +1376,170 @@ class _PracticeModesScreenState extends State<PracticeModesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _launchWritingPractice(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null) return;
+
+    setState(() => _isLoading = true);
+    final sentences = await CsvDataService().getSentences(
+      activeCourse.targetLanguage, 
+      activeCourse.nativeLanguage,
+      limit: _sentenceQuestionCount,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(
+      MaterialPageRoute(
+        builder: (context) => WritingPracticeScreen(
+          sentences: sentences,
+          targetLanguage: activeCourse.targetLanguage,
+          nativeLanguage: activeCourse.nativeLanguage,
+        ),
+      ),
+    );
+    stopwatch.stop();
+    
+    if (result != null) {
+      await _recordSessionCompletion(
+        mode: 'Writing Practice',
+        isVocabulary: false,
+        totalItems: (result['count'] ?? 5) as int,
+        duration: stopwatch.elapsed,
+        quizResult: result,
+      );
+    }
+  }
+
+
+
+  Future<void> _launchSpellingBee(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(MaterialPageRoute(
+      builder: (context) => SpellingBeeScreen(
+        vocabulary: vocabularyForSession,
+        targetLanguage: activeCourse.targetLanguage,
+        nativeLanguage: activeCourse.nativeLanguage,
+      ),
+    ));
+    stopwatch.stop();
+    await _recordSessionCompletion(mode: 'Spelling Bee', isVocabulary: true, totalItems: vocabularyForSession.length, duration: stopwatch.elapsed, quizResult: result, vocabulary: vocabularyForSession);
+  }
+
+  Future<void> _launchWordAssociation(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(MaterialPageRoute(
+      builder: (context) => WordAssociationScreen(
+        vocabulary: vocabularyForSession,
+        targetLanguage: activeCourse.targetLanguage,
+        nativeLanguage: activeCourse.nativeLanguage,
+      ),
+    ));
+    stopwatch.stop();
+    await _recordSessionCompletion(mode: 'Word Association', isVocabulary: true, totalItems: vocabularyForSession.length, duration: stopwatch.elapsed, quizResult: result, vocabulary: vocabularyForSession);
+  }
+
+  Future<void> _launchListeningDictation(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null) return;
+
+    setState(() => _isLoading = true);
+    final csvService = CsvDataService();
+    final sentences = await csvService.getSentences(
+      activeCourse.targetLanguage,
+      activeCourse.nativeLanguage,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    final filteredSentences = _filteredSentencesForSession(sentences);
+
+    if (filteredSentences.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No sentences available for Listening Dictation'), backgroundColor: AppColors.accentCoral),
+      );
+      return;
+    }
+
+    final List<SentenceItem> sentenceItems = filteredSentences.map((s) => SentenceItem.fromMap(s)).toList();
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(MaterialPageRoute(
+      builder: (context) => ListeningDictationScreen(
+        sentences: sentenceItems,
+        targetLanguage: activeCourse.targetLanguage,
+        nativeLanguage: activeCourse.nativeLanguage,
+      ),
+    ));
+    stopwatch.stop();
+    await _recordSessionCompletion(mode: 'Listening Dictation', isVocabulary: false, totalItems: filteredSentences.length, duration: stopwatch.elapsed, quizResult: result);
+  }
+
+  Future<void> _launchSpeedReview(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final activeCourse = context.read<CourseProvider>().activeCourse;
+    if (activeCourse == null) return;
+
+    final vocabularyForSession = await _filteredVocabularyForSession();
+
+    if (!mounted) return;
+
+    if (vocabularyForSession.length < 4) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Need at least 4 vocabulary words to play'), backgroundColor: AppColors.accentCoral,),
+      );
+      return;
+    }
+
+    final stopwatch = Stopwatch()..start();
+    final result = await navigator.push(MaterialPageRoute(
+      builder: (context) => SpeedReviewScreen(
+        vocabulary: vocabularyForSession,
+        targetLanguage: activeCourse.targetLanguage,
+        nativeLanguage: activeCourse.nativeLanguage,
+      ),
+    ));
+    stopwatch.stop();
+    await _recordSessionCompletion(mode: 'Speed Review', isVocabulary: true, totalItems: vocabularyForSession.length, duration: stopwatch.elapsed, quizResult: result, vocabulary: vocabularyForSession);
   }
 }
 

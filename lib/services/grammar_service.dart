@@ -1,9 +1,9 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import '../models/grammar_models.dart';
 import 'ai_tutor_service.dart';
 import 'supabase_service.dart';
+import '../theme/app_theme.dart';
 
 /// High-end Grammar Service for comprehensive grammar teaching system
 /// Integrates with AI for personalized learning experiences
@@ -20,7 +20,6 @@ class GrammarService {
   final Map<String, List<GrammarSkillNode>> _skillTreeCache = {};
   final Map<String, List<VerbConjugation>> _conjugationCache = {};
   final Map<String, List<SentencePattern>> _patternCache = {};
-  final Map<String, GrammarLessonContent> _lessonContentCache = {};
 
   /// Initialize the grammar service with course-specific content
   Future<void> initialize(String courseId, String targetLanguage, String nativeLanguage) async {
@@ -49,6 +48,12 @@ class GrammarService {
 
   Future<List<GrammarSkillNode>> _loadSkillTree(String courseId) async {
     try {
+      if (_supabase.currentUserId == null) {
+        final demoSkills = _getDemoSkillTree();
+        _skillTreeCache[courseId] = demoSkills;
+        return demoSkills;
+      }
+
       final response = await _supabase.client
           .from('grammar_skill_tree')
           .select()
@@ -137,6 +142,13 @@ class GrammarService {
     String language,
   ) async {
     try {
+      if (_supabase.currentUserId == null) {
+        final demoConjugations = _getDemoConjugations();
+        final cacheKey = '${courseId}_$language';
+        _conjugationCache[cacheKey] = demoConjugations;
+        return demoConjugations;
+      }
+
       final response = await _supabase.client
           .from('verb_conjugations')
           .select()
@@ -211,6 +223,13 @@ class GrammarService {
     String nativeLanguage,
   ) async {
     try {
+      if (_supabase.currentUserId == null) {
+        final demoPatterns = _getDemoSentencePatterns();
+        final cacheKey = '${courseId}_$targetLanguage';
+        _patternCache[cacheKey] = demoPatterns;
+        return demoPatterns;
+      }
+
       final response = await _supabase.client
           .from('sentence_patterns')
           .select()
@@ -241,6 +260,45 @@ class GrammarService {
       'explanation': pattern.explanation,
       'examples': pattern.examples,
     };
+  }
+
+  // ==================== LESSON CONTENT ====================
+
+  /// Get detailed lesson content for a skill
+  Future<GrammarLessonContent> getLessonContent(String skillId) async {
+    try {
+      if (_supabase.currentUserId == null) {
+        return _getDemoLessonContent(skillId);
+      }
+
+      final response = await _supabase.client
+          .from('grammar_lessons')
+          .select()
+          .eq('skill_id', skillId)
+          .single();
+
+      return GrammarLessonContent.fromJson(response);
+    } catch (e) {
+      _logger.e('Failed to load lesson content for $skillId', error: e);
+      // Fallback to demo content
+      return _getDemoLessonContent(skillId);
+    }
+  }
+
+  GrammarLessonContent _getDemoLessonContent(String skillId) {
+    return GrammarLessonContent(
+      id: 'l_$skillId',
+      title: 'Grammar Essentials',
+      body: 'In this lesson, you will learn the fundamental rules of this grammar concept. Mastering this will significantly improve your fluency and accuracy in the target language.',
+      examples: [
+        'Example 1: Demonstrating the basic usage.',
+        'Example 2: Showing a more complex application.',
+      ],
+      tips: [
+        'Tip 1: Pay attention to the word order.',
+        'Tip 2: Practice with different verbs to build muscle memory.',
+      ],
+    );
   }
 
   // ==================== AI-POWERED FEATURES ====================
@@ -321,7 +379,7 @@ class GrammarService {
         x: 0.5,
         y: 0.0,
         isUnlocked: true,
-        color: Colors.blue,
+        color: AppColors.primaryTeal,
       ),
       const GrammarSkillNode(
         id: 'g2',
@@ -331,7 +389,7 @@ class GrammarService {
         x: 0.2,
         y: 0.2,
         requires: ['g1'],
-        color: Colors.green,
+        color: AppColors.success,
       ),
       const GrammarSkillNode(
         id: 'g3',
@@ -341,7 +399,7 @@ class GrammarService {
         x: 0.8,
         y: 0.2,
         requires: ['g1'],
-        color: Colors.purple,
+        color: AppColors.darkAccentPurple,
       ),
       const GrammarSkillNode(
         id: 'g4',
@@ -351,7 +409,7 @@ class GrammarService {
         x: 0.5,
         y: 0.4,
         requires: ['g2', 'g3'],
-        color: Colors.orange,
+        color: AppColors.accentCoral,
       ),
     ];
   }

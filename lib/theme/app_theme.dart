@@ -231,15 +231,54 @@ class AppColors {
   
   // Status Colors
   static const Color success = Color(0xFF66BB6A);
+  static const Color successLight = Color(0xFFE8F5E9);
   static const Color error = Color(0xFFEF5350);
+  static const Color danger = Color(0xFFE53935);
   static const Color warning = Color(0xFFFFCA28);
+  static const Color warningLight = Color(0xFFFFF8E1);
   
   // Light Theme Text Colors
   static const Color textDark = Color(0xFF263238);
   static const Color textMedium = Color(0xFF546E7A);
   static const Color textLight = Color(0xFF78909C);
+  static const Color textOnDark = Colors.white;
   static const Color surface = Colors.white;
   
+  // Neutral Shades (replaces raw Colors.grey)
+  static const Color neutralLight = Color(0xFFF5F5F5);
+  static const Color neutralMid = Color(0xFFBDBDBD);
+  static const Color neutralDark = Color(0xFF757575);
+
+  // Additional Brand Accents
+  static const Color primaryPurple = Color(0xFF667eea);
+  static const Color secondaryPurple = Color(0xFF764ba2);
+  static const Color brandOrange = Color(0xFFFF8F00);
+  static const Color brandTeal = Color(0xFF20B2AA);
+  static const Color lightGreyBackground = Color(0xFFF8F9FA);
+
+  // Achievement/Metallic Colors
+  static const Color bronze = Color(0xFFCD7F32);
+  static const Color silver = Color(0xFFC0C0C0);
+  static const Color gold = Color(0xFFFFD700);
+  static const Color platinum = Color(0xFFE5E4E2);
+  static const Color diamond = Color(0xFFB9F2FF);
+  static const Color vibrantOrange = Color(0xFFFF6B35);
+
+  // Chart/Level Colors
+  static const Color chartLevel0 = Color(0xFFE0E0E0);
+  static const Color chartLevel1 = Color(0xFF9BE9A8);
+  static const Color chartLevel2 = Color(0xFF40C463);
+  static const Color chartLevel3 = Color(0xFF30A14E);
+  static const Color chartLevel4 = Color(0xFF216E39);
+
+  // Gradient Shades
+  static const Color goldDark = Color(0xFFFFA000);
+  static const Color vividPurple = Color(0xFF9C27B0);
+  static const Color vividPurpleDark = Color(0xFF7B1FA2);
+
+  // Default Accents
+  static const Color brandingAccent = Color(0xFF4DB6AC);
+
   // Gradients
   static const LinearGradient tealGradient = LinearGradient(
     colors: [primaryTeal, darkTeal],
@@ -254,13 +293,19 @@ class AppColors {
   );
   
   static const LinearGradient goldGradient = LinearGradient(
-    colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+    colors: [gold, goldDark],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
+
+  static const LinearGradient brandPurpleGradient = LinearGradient(
+    colors: [primaryPurple, secondaryPurple],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
   
   static const LinearGradient purpleGradient = LinearGradient(
-    colors: [Color(0xFF9C27B0), Color(0xFF7B1FA2)],
+    colors: [vividPurple, vividPurpleDark],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

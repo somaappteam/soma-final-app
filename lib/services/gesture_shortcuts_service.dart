@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_theme.dart';
 
 /// Gesture shortcuts configuration and service
 class GestureShortcutsService {
@@ -230,7 +231,7 @@ class GestureHelpDialog extends StatelessWidget {
     return AlertDialog(
       title: const Row(
         children: [
-          Icon(Icons.gesture, color: Colors.blue),
+          Icon(Icons.gesture, color: AppColors.primaryTeal),
           SizedBox(width: 8),
           Text('Gesture Shortcuts'),
         ],
@@ -240,7 +241,7 @@ class GestureHelpDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: GestureType.values.map((gesture) {
             return ListTile(
-              leading: Icon(gesture.icon, color: Colors.grey),
+              leading: Icon(gesture.icon, color: AppColors.neutralMid),
               title: Text(gesture.displayName),
               subtitle: Text(gesture.description),
             );
